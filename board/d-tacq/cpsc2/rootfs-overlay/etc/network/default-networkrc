@@ -1,0 +1,76 @@
+#!/bin/sh
+
+DSCRIPT=/usr/share/udhcpc/default.script
+UPID=/tmp/udhcpd.pid
+KILLDONE=/tmp/killdone
+
+get_mac_address() {
+	cat /sys/class/net/eth0/address
+}
+
+start_eth() {
+        timer=10
+        ifconfig eth0 up
+        while [ $timer -gt 0 ]; do
+                grep -q "up" /sys/class/net/eth0/operstate 
+                        if [ $? == 0 ]; then
+                                echo "ethernet link up"
+                                break
+                        else
+                                echo "Waiting for link up ... $timer"
+                                sleep 1 
+                                let timer=$timer-1
+                        fi
+        done
+}
+
+dhcp_killer() {
+	sleep 5
+	let countdown=10
+	while [ $countdown -gt 0 ]; do
+		echo +++ dhcp_killer counting $countdown
+		let countdown=$countdown-1
+		sleep 1
+	done
+	echo +++ dhcp_killer ...
+	if [ -e $UPID ]; then
+		KPID=$(cat $UPID)
+		rm $UPID
+		kill -9 $KPID
+		echo dhcp_killer kill $KPID
+		echo dhcp_killer kill $KPID >$KILLDONE
+	fi
+	MAC=$(get_mac_address)
+	let DMINOR=$(printf "%d" 0x$(echo ${MAC##*:}))
+	let IPMINOR="$DMINOR==200? 200: $DMINOR%200"
+	IP=192.168.0.$IPMINOR
+	echo +++ setting fallback static ip $IP
+	ifconfig eth0 $IP up
+}
+start_eth
+echo "+++ Starting dhcp daemon [default]"
+dhcp_killer & killer_pid=$!
+udhcpc -q -s $DSCRIPT -x hostname:$(hostname) -p $UPID
+if [ $? -ne 0 ]; then
+	echo +++ udhcpc fail, quit
+	exit 1
+elif [ -e $KILLDONE ];then
+	echo +++ udhcpc fail, $KILLDONE detected
+	rm $KILLDONE
+	exit 1
+else
+	kill -9 $killer_pid
+	echo +++ dhcp good, remove failsafe $killer_pid
+fi
+
+udhcpc -b -a -s/usr/share/udhcpc/default.script  \
+                -x hostname:$(hostname) -p /var/run/udhcpc.eth0.pid
+source /tmp/dhcp.env
+if [ "x$siaddr" != "x" ]; then
+        ntpd -p $siaddr
+elif [ "x$serverid" != "x" ]; then
+        if [ ! -e /mnt/local/ntpd.conf ]; then
+                ntpd -p $serverid
+        fi
+fi
+

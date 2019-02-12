@@ -1,0 +1,6 @@
+#!/bin/sh
+# get.sys path
+
+SYSPATH=$1
+cat $SYSPATH
+

@@ -1,0 +1,7 @@
+#!/bin/sh
+# set.sys path value [value2]
+
+SYSPATH=$1
+shift
+echo $* >$SYSPATH
+

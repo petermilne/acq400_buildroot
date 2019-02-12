@@ -1,0 +1,16 @@
+s0r		/dev/mem 0x40000000 0x1000   0x40000000
+s0f		/dev/mem 0x40001000 0x1000   0x40001000
+s0X		/dev/mem 0x40000000 0x10000   0x40000000
+s1X		/dev/mem 0x40010000 0x10000   0x40010000
+#zps_regs      /dev/mem 0xF8000000 0x810000 0xF8000000
+#axi_regs      /dev/mem 0x40000000 0x1000   0x40000000
+#axi_alg_fifo  /dev/mem 0x40001000 0x1000   0x40001000
+#axi_alg_regs  /dev/mem 0x40002000 0x1000   0x40002000
+#adc_dump0     /tmp/000 0          0x1000   0
+#adc_dump1     /tmp/001 0          0x1000   0
+#adc_dump2     /tmp/002 0          0x1000   0
+#adc_dump3     /tmp/003 0          0x1000   0
+#adc_dump4     /tmp/004 0          0x1000   0
+#adc_dump5     /tmp/005 0          0x1000   0
+#adc_dump6     /tmp/006 0          0x1000   0
+#adc_dump7     /tmp/007 0          0x1000   0

@@ -1,0 +1,1339 @@
+diff -urN busybox-safe/shell/ash.c busybox-1.29.3/shell/ash.c
+--- busybox-safe/shell/ash.c	2018-07-02 12:23:06.000000000 +0100
++++ busybox-1.29.3/shell/ash.c	2019-01-02 18:50:37.964796181 +0000
+@@ -267,6 +267,12 @@
+ # define IF_NOT_FEATURE_SH_STANDALONE(...) __VA_ARGS__
+ #endif
+ 
++#if ENABLE_FEATURE_UMON
++#include "cmd_mem.h"
++static void setvar_hook( const char *key, const char* value );
++static int _do_mem_mapping( int argc, char** argv );
++#endif
++
+ #ifndef F_DUPFD_CLOEXEC
+ # define F_DUPFD_CLOEXEC F_DUPFD
+ #endif
+@@ -9854,6 +9860,35 @@
+ 	{ BUILTIN_NOSPEC        "let"     , letcmd     },
+ #endif
+ 	{ BUILTIN_SPEC_REG_ASSG "local"   , localcmd   },
++
++#if ENABLE_FEATURE_UMON
++	{BUILTIN_REGULAR 		"map"	  , _do_mem_mapping },
++	{BUILTIN_REGULAR 		"mcmp"	  , do_mem_cmp },
++	{BUILTIN_REGULAR 		"mcp"	  , do_mem_cp },
++
++	{BUILTIN_REGULAR "md"			  , do_mem_md },
++	{BUILTIN_REGULAR "md.b"			  , do_mem_md },
++	{BUILTIN_REGULAR "md.l"			  , do_mem_md },
++	{BUILTIN_REGULAR "md.w"			  , do_mem_md },
++
++	{BUILTIN_REGULAR "mhelp"		  , do_mem_help },
++	{BUILTIN_REGULAR "mloop"		  , do_mem_loop },
++
++	{BUILTIN_REGULAR "mm"			  , do_mem_mm },
++	{BUILTIN_REGULAR "mm.b"			  , do_mem_mm },
++	{BUILTIN_REGULAR "mm.l"			  , do_mem_mm },
++	{BUILTIN_REGULAR "mm.w"			  , do_mem_mm },
++
++	{BUILTIN_REGULAR "mtest"		  , do_mem_mtest },
++
++	{BUILTIN_REGULAR "mw"			  , do_mem_mw },
++	{BUILTIN_REGULAR "nm"			  , do_mem_nm },
++	{BUILTIN_REGULAR "nm.b"			  , do_mem_nm },
++	{BUILTIN_REGULAR "nm.l"			  , do_mem_nm },
++	{BUILTIN_REGULAR "nm.w"			  , do_mem_nm },
++	{BUILTIN_REGULAR "mcrc"			  , do_mem_crc},
++#endif
++
+ #if ENABLE_ASH_PRINTF
+ 	{ BUILTIN_REGULAR       "printf"  , printfcmd  },
+ #endif
+@@ -14245,6 +14280,19 @@
+ }
+ 
+ 
++#ifdef ENABLE_FEATURE_UMON
++static void setvar_hook( const char *key, const char* value )
++{
++	setvar( key, value, VEXPORT|VREADONLY );
++}
++static int _do_mem_mapping( int argc, char** argv )
++{
++	set_mem_exporter( setvar_hook );
++	return do_mem_mapping( argc, argv );
++}
++
++#endif
++
+ /*-
+  * Copyright (c) 1989, 1991, 1993, 1994
+  *      The Regents of the University of California.  All rights reserved.
+diff -urN busybox-safe/shell/cmd_mem.c busybox-1.29.3/shell/cmd_mem.c
+--- busybox-safe/shell/cmd_mem.c	1970-01-01 01:00:00.000000000 +0100
++++ busybox-1.29.3/shell/cmd_mem.c	2019-01-02 19:45:28.422491065 +0000
+@@ -0,0 +1,1193 @@
++/* ------------------------------------------------------------------------- */
++/* cmd_mem.c memory debug monitor routines for busybox                       */
++/* ------------------------------------------------------------------------- */
++/*   Copyright (C) 2003 Peter Milne, D-TACQ Solutions Ltd
++ *                      <Peter dot Milne at D hyphen TACQ dot com>
++
++    Sincere acknowledgements to Wolfgang Denk, this is the file from
++    u-boot, but with Linux mmap() and Busybox hooks.
++
++    The aim is to achieve the u-boot class debug monitor running in
++    user state under Linux.
++
++    Method: map in areas of (io)memory into user space, so that we
++    can view/hack them.
++
++
++    The md, mm etc commands become ash builtins
++
++    On initial command map, this code will read defaults from a setup
++    file
++
++    .umonrc (user state monitor)
++
++    format is
++
++    varname devname offset length opts
++
++    map will then call on the device driver, make the mmap() call and
++    set the ash shell varname to the value of the mapping.
++
++    Then its possible to do things like:
++
++    md $pmmr
++    mm.b $pmmr+0x80
++
++    Clearly this is also very scriptable.
++
++
++    Sample .umonrc, map in a regular file called "gash", copy onto shell
++    variable $gash.
++
++    Clearly, you really want this to map real memory. If you comment out
++    the first line and run as root then you can peek at interestings in
++    kernel memory.
++
++    WARNING: do not write into the memory, unless you really want to crash
++    your system.
++
++# .umonrc User state MONitor
++# varname device offset length opts [pdisplay - base address for mem display]
++#vectors /dev/mem 0x00000000 0x00001000 rw 0xf0000000
++gash gash 0 0x100 rw
++
++    Provided suitable device drivers are in
++    This program is free software; you can redistribute it and/or modify
++    it under the terms of Version 2 of the GNU General Public License
++    as published by the Free Software Foundation;
++
++    This program is distributed in the hope that it will be useful,
++    but WITHOUT ANY WARRANTY; without even the implied warranty of
++    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++    GNU General Public License for more details.
++
++    You should have received a copy of the GNU General Public License
++    along with this program; if not, write to the Free Software
++    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.                */
++/* ------------------------------------------------------------------------- */
++
++
++/*
++ * (C) Copyright 2000
++ * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
++ *
++ * See file CREDITS for list of people who contributed to this
++ * project.
++ *
++ * Memory Functions
++ *
++ * Copied from FADS ROM, Dan Malek (dmalek@jlc.net)
++ */
++
++#include <stdio.h>
++#include <ctype.h>
++#include <string.h>
++#include <stdlib.h>
++#include <unistd.h>
++#include <sys/mman.h>
++
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <fcntl.h>
++
++#include <zlib.h>
++
++#ifndef MAP_FAILED
++#define MAP_FAILED ((void *)-1)
++#endif
++
++//#include <asm/mman.h>    /* PROT_ */
++
++#include "libbb.h"
++
++#include "cmd_mem.h"
++
++#ifdef CONFIG_FEATURE_EDITING
++line_input_t local_history;
++#define readline(prompt, buffer, maxbuf) \
++	read_line_input(&local_history, prompt, buffer, maxbuf)
++#else
++#define readline(prompt, buffer, maxbuf) \
++	read_line_input(prompt, buffer, maxbuf)
++#endif
++
++
++
++typedef volatile unsigned long vu_long;
++
++#define CFG_MEMTEST_START 0x0bad1dea
++#define CFG_MEMTEST_END   0xdeadbeef
++
++
++
++static unsigned long
++simple_strtoul( const char *nptr, char **endptr, int base)
++/* regular strtoul func, also handles "n+n" */
++{
++	char buf[80];
++	char* pplus;
++	unsigned long total = 0;
++
++	while( (pplus = index(nptr, '+' )) != NULL ){
++		memcpy( buf, nptr, pplus-nptr );
++		buf[pplus-nptr] = '\0';
++		nptr = pplus + 1;
++
++		total += strtoul( buf, NULL, base );
++	}
++
++	total += strtoul( nptr, endptr, base );
++
++	return total;
++}
++
++static int ctrlc(void)
++{
++	return 0;
++}
++
++static int repeat;
++
++static void umon_repeat_hook(void) {
++	repeat = 1;
++}
++
++#define MOD_PROMPT " ? "
++
++static int umon_nohistory_prompt(char *prompt)
++/* returns 1 if commands with this prompt not wanted in history */
++{
++	return strcmp( prompt, MOD_PROMPT ) == 0;
++}
++
++static int cmd_repeat(void) {
++	int is_repeat = repeat;
++	repeat = 0;
++	return is_repeat;
++}
++
++static int cmd_get_data_size(char* arg, int default_size)
++{
++	/* Check for a size specification .b, .w or .l.
++	 */
++	int len = strlen(arg);
++	if (len > 2 && arg[len-2] == '.') {
++		switch(arg[len-1]) {
++		case 'b':
++			return 1;
++		case 'w':
++			return 2;
++		case 'l':
++			return 4;
++		}
++	}
++	return default_size;
++}
++
++typedef unsigned char uchar;
++
++
++#ifdef	CMD_MEM_DEBUG
++#define	PRINTF(fmt,args...)	printf (fmt ,##args)
++#else
++#define PRINTF(fmt,args...)
++#endif
++
++static int mod_mem(int, int, char *[]);
++
++/* Display values from last command.
++ * Memory modify remembered values are different from display memory.
++ */
++uint	dp_last_addr, dp_last_size;
++uint	dp_last_length = 0x40;
++uint	mm_last_addr, mm_last_size;
++
++static	ulong	base_address = 0;
++
++
++static void (*exporter)(const char *, const char *);
++
++void set_mem_exporter(void (*_exporter)(const char *, const char *))
++{
++	exporter = _exporter;
++}
++
++int do_mem_help(__attribute__((unused)) int argc, __attribute__((unused)) char* argv[])
++{
++	puts( "mcmp     - memory compare" );
++	puts( "mcp      - memory copy" );
++	puts( "mcrc32   - checksum calculation" );
++	puts( "mloop    - infinite loop on address range" );
++	puts( "md      - memory display" );
++	puts( "mm      - memory modify (auto-incrementing)");
++	puts( "mtest   - simple RAM test" );
++	puts( "mw      - memory write (fill)" );
++	puts( "nm      - memory modify (constant address)" );
++	return 0;
++}
++
++
++
++struct mapping {
++	char logname[20];
++	char device[20];
++	char opts[8];
++	unsigned offset;
++	unsigned length;
++	void* mapping;
++	unsigned pdisplay;        /* pa to display */
++	int fd;
++};
++
++#define PA_NO_DISPLAY 0xffffffff
++
++static void print_mapping( struct mapping* m )
++{
++	printf( "%10s %15s 0x%08x 0x%08x %p %d 0x%08x %s\n",
++		m->logname, m->device, m->offset, m->length,
++		m->mapping, m->fd, m->pdisplay, m->opts );
++}
++static int convert_to_pa( struct mapping *map, unsigned long *addr )
++{
++	unsigned long ul_mapping = (unsigned long)map->mapping;
++
++	if ( *addr >= ul_mapping &&
++	     *addr <  ul_mapping+map->length &&
++	     map->pdisplay != PA_NO_DISPLAY ){
++		*addr = (*addr - ul_mapping) + map->pdisplay;
++		return 1;
++	}else{
++		return 0;
++	}
++}
++
++
++static int parse_mapdef( char defline[], struct mapping* mapping )
++/*
++ *	logname device offset length opts
++ */
++{
++	struct mapping m = {
++		pdisplay: PA_NO_DISPLAY
++	};
++	char offstring[20];
++	char lenstring[20];
++	char dispstring[20];
++	int nscan = 0;
++
++	if ( defline[0] == '#' || defline[0] == '\n' ){
++		return 0;
++	}else if ( (nscan = sscanf(
++			    defline,
++			    "%20s %80s %20s %20s %8s %20s",
++			    m.logname, m.device,
++			    offstring, lenstring, m.opts, dispstring )) >= 5 ){
++		m.offset = strtoul( offstring, 0, 0 );
++		m.length = strtoul( lenstring, 0, 0 );
++		if ( nscan > 5 ){
++			m.pdisplay = strtoul( dispstring, 0, 0 );
++		}
++
++		m.fd = open( m.device, O_RDWR );
++
++		if ( m.fd < 0 ){
++			printf( "ERROR failed to open \"%s\" ERROR %d\n",
++				m.device, m.fd );
++			return m.fd;
++		}
++
++		m.mapping = mmap( 0, m.length, PROT_READ|PROT_WRITE,
++				MAP_SHARED, m.fd, m.offset );
++
++		if ( m.mapping == MAP_FAILED ){
++			printf( "ERROR map failed\n" );
++			return -1;
++		}else{
++			char value[40];
++
++			sprintf( value, "0x%08x", (unsigned)m.mapping );
++			printf( "map %s\n", value );
++			if ( exporter != NULL ){
++				exporter( m.logname, value );
++			}
++			memcpy( mapping, &m, sizeof(m) );
++			return 1;
++		}
++	}else{
++		return -1;
++	}
++}
++#define MAPDEF_NAME ".umonrc"
++#define MAPDEF_MAXLINE 128
++#define MAXMAPS 32
++
++static struct mapping maps[MAXMAPS];
++static int nmaps;
++
++
++static void display_pa( unsigned long addr )
++{
++	int imap;
++
++	for ( imap = 0; imap != nmaps; ++imap ){
++		if ( convert_to_pa( &maps[imap], &addr ) ){
++			break;
++		}
++	}
++	printf( "%08lx:", addr );
++}
++
++static int do_mem_mapping_show(__attribute__((unused)) int argc, __attribute__((unused)) char* argv[] )
++{
++	int imap;
++
++	for ( imap = 0; imap != nmaps; ++imap ){
++		print_mapping( &maps[imap] );
++	}
++	return nmaps;
++}
++
++int do_mem_mapping(int argc, char* argv[])
++{
++	FILE *mapdef;	
++	const char* fname = MAPDEF_NAME;
++	char defline[MAPDEF_MAXLINE];
++	int iline = 0;
++	int rc;
++
++	if ( argc > 1 ){
++		if ( strcmp( argv[1], "show" ) == 0 ){
++			return do_mem_mapping_show( argc, argv );
++		}else{
++			fname = argv[1];
++		}
++	}
++
++	mapdef = fopen( fname, "r" );
++
++	if ( mapdef == NULL ){
++		printf( "ERROR, failed to open mapdef %s\n", fname );
++		return -1;
++	}
++
++	while( fgets( defline, MAPDEF_MAXLINE, mapdef ) != NULL ){
++		++iline;
++		switch( rc = parse_mapdef( defline, &maps[nmaps] ) ){
++		case 1:
++			if ( ++nmaps == MAXMAPS ){
++				printf( "MAXMAPS reached\n" );
++				return nmaps;
++			}
++			break;
++		case 0:
++			break;
++		default:
++			printf( "%s:%d ERROR scan \"%s\" failed code:%d\n",
++				fname, iline, defline, rc );
++			return rc;
++		}
++	}
++
++	printf( "map %d maps defined\n", nmaps );
++	return nmaps;
++}
++
++/* Memory Display
++ *
++ * Syntax:
++ *	md{.b, .w, .l} {addr} {len}
++ */
++#define DISP_LINE_LEN	16
++int do_mem_md (int argc, char *argv[])
++{
++	ulong	addr, size, length;
++	ulong	i, nbytes, linebytes;
++	u_char	*cp;
++	int rc = 0;
++
++	/* We use the last specified parameters, unless new ones are
++	 * entered.
++	 */
++	addr = dp_last_addr;
++	size = dp_last_size;
++	length = dp_last_length;
++
++	if (argc < 2) {
++		printf ("Usage:\n%s\n",  "worktodo" );
++		return 1;
++	}
++
++	if ( !cmd_repeat() ) {
++		/* New command specified.  Check for a size specification.
++		 * Defaults to long if no or incorrect specification.
++		 */
++		size = cmd_get_data_size(argv[0], 4);
++
++		/* Address is specified since argc > 1
++		*/
++		addr = simple_strtoul(argv[1], NULL, 16);
++		addr += base_address;
++
++		/* If another parameter, it is the length to display.
++		 * Length is the number of objects, not number of bytes.
++		 */
++		if (argc > 2)
++			length = simple_strtoul(argv[2], NULL, 16);
++	}
++
++	/* Print the lines.
++	 *
++	 * We buffer all read data, so we can make sure data is read only
++	 * once, and all accesses are with the specified bus width.
++	 */
++	nbytes = length * size;
++	do {
++		char	linebuf[DISP_LINE_LEN];
++		uint	*uip = (uint   *)linebuf;
++		ushort	*usp = (ushort *)linebuf;
++		u_char	*ucp = (u_char *)linebuf;
++
++		display_pa(addr);
++		linebytes = (nbytes>DISP_LINE_LEN)?DISP_LINE_LEN:nbytes;
++		for (i=0; i<linebytes; i+= size) {
++			if (size == 4) {
++				printf(" %08x", (*uip++ = *((uint *)addr)));
++			} else if (size == 2) {
++				printf(" %04x", (*usp++ = *((ushort *)addr)));
++			} else {
++				printf(" %02x", (*ucp++ = *((u_char *)addr)));
++			}
++			addr += size;
++		}
++		printf("    ");
++		cp = (u_char*)linebuf;
++		for (i=0; i<linebytes; i++) {
++			if ((*cp < 0x20) || (*cp > 0x7e))
++				printf(".");
++			else
++				printf("%c", *cp);
++			cp++;
++		}
++		printf("\n");
++		nbytes -= linebytes;
++		if (ctrlc()) {
++			rc = 1;
++			break;
++		}
++	} while (nbytes > 0);
++
++	dp_last_addr = addr;
++	dp_last_length = length;
++	dp_last_size = size;
++	return (rc);
++}
++
++int do_mem_mm ( int argc, char *argv[])
++{
++	return mod_mem (1, argc, argv);
++}
++int do_mem_nm ( int argc, char *argv[])
++{
++	return mod_mem (0, argc, argv);
++}
++
++int do_mem_mw ( int argc, char *argv[])
++{
++	ulong	addr, size, writeval, count;
++
++	if ((argc < 3) || (argc > 4)) {
++		printf ("Usage:\n%s\n",  "mw[.s] addr value count" );
++		return 1;
++	}
++
++	/* Check for size specification.
++	*/
++	size = cmd_get_data_size(argv[0], 4);
++
++	/* Address is specified since argc > 1
++	*/
++	addr = simple_strtoul(argv[1], NULL, 16);
++	addr += base_address;
++
++	/* Get the value to write.
++	*/
++	writeval = simple_strtoul(argv[2], NULL, 16);
++
++	/* Count ? */
++	if (argc == 4) {
++		count = simple_strtoul(argv[3], NULL, 16);
++	} else {
++		count = 1;
++	}
++
++	while (count-- > 0) {
++		if (size == 4)
++			*((ulong  *)addr) = (ulong )writeval;
++		else if (size == 2)
++			*((ushort *)addr) = (ushort)writeval;
++		else
++			*((u_char *)addr) = (u_char)writeval;
++		addr += size;
++	}
++	return 0;
++}
++
++int do_mem_cmp (int argc, char *argv[])
++{
++	ulong	size, addr1, addr2, count, ngood;
++	int     rcode = 0;
++
++	if (argc != 4) {
++		printf ("Usage:\n%s\n", "mcmp a1 a2 count");
++		return 1;
++	}
++
++	/* Check for size specification.
++	*/
++	size = cmd_get_data_size(argv[0], 4);
++
++	addr1 = simple_strtoul(argv[1], NULL, 16);
++	addr1 += base_address;
++
++	addr2 = simple_strtoul(argv[2], NULL, 16);
++	addr2 += base_address;
++
++	count = simple_strtoul(argv[3], NULL, 16);
++
++	ngood = 0;
++
++	while (count-- > 0) {
++		if (size == 4) {
++			ulong word1 = *(ulong *)addr1;
++			ulong word2 = *(ulong *)addr2;
++			if (word1 != word2) {
++				printf("word at 0x%08lx (0x%08lx) "
++					"!= word at 0x%08lx (0x%08lx)\n",
++					addr1, word1, addr2, word2);
++				rcode = 1;
++				break;
++			}
++		}
++		else if (size == 2) {
++			ushort hword1 = *(ushort *)addr1;
++			ushort hword2 = *(ushort *)addr2;
++			if (hword1 != hword2) {
++				printf("halfword at 0x%08lx (0x%04x) "
++					"!= halfword at 0x%08lx (0x%04x)\n",
++					addr1, hword1, addr2, hword2);
++				rcode = 1;
++				break;
++			}
++		}
++		else {
++			u_char byte1 = *(u_char *)addr1;
++			u_char byte2 = *(u_char *)addr2;
++			if (byte1 != byte2) {
++				printf("byte at 0x%08lx (0x%02x) "
++					"!= byte at 0x%08lx (0x%02x)\n",
++					addr1, byte1, addr2, byte2);
++				rcode = 1;
++				break;
++			}
++		}
++		ngood++;
++		addr1 += size;
++		addr2 += size;
++	}
++
++	printf("Total of %ld %s%s were the same\n",
++		ngood, size == 4 ? "word" : size == 2 ? "halfword" : "byte",
++		ngood == 1 ? "" : "s");
++	return rcode;
++}
++
++int do_mem_cp (int argc, char *argv[])
++{
++	ulong	addr, size, dest, count;
++
++	if (argc != 4) {
++		printf ("Usage:\n%s\n", "mcp src dest count");
++		return 1;
++	}
++
++	/* Check for size specification.
++	*/
++	size = cmd_get_data_size(argv[0], 4);
++
++	addr = simple_strtoul(argv[1], NULL, 16);
++	addr += base_address;
++
++	dest = simple_strtoul(argv[2], NULL, 16);
++	dest += base_address;
++
++	count = simple_strtoul(argv[3], NULL, 16);
++
++	if (count == 0) {
++		puts ("Zero length ???\n");
++		return 1;
++	}
++
++
++
++	while (count-- > 0) {
++		if (size == 4)
++			*((ulong  *)dest) = *((ulong  *)addr);
++		else if (size == 2)
++			*((ushort *)dest) = *((ushort *)addr);
++		else
++			*((u_char *)dest) = *((u_char *)addr);
++		addr += size;
++		dest += size;
++	}
++	return 0;
++}
++#if 0
++int do_mem_base (int argc, char *argv[])
++{
++	if (argc > 1) {
++		/* Set new base address.
++		*/
++		base_address = simple_strtoul(argv[1], NULL, 16);
++	}
++	/* Print the current base address.
++	*/
++	printf("Base Address: 0x%08lx\n", base_address);
++	return 0;
++}
++#endif
++int do_mem_loop (int argc, char *argv[])
++{
++	ulong	addr, size, length, i, __attribute__((unused)) junk;
++	volatile uint	*longp;
++	volatile ushort *shortp;
++	volatile u_char	*cp;
++
++	if (argc < 3) {
++		printf ("Usage:\n%s\n", "worktodo");
++		return 1;
++	}
++
++	/* Check for a size specification.
++	 * Defaults to long if no or incorrect specification.
++	 */
++	size = cmd_get_data_size(argv[0], 4);
++
++	/* Address is always specified.
++	*/
++	addr = simple_strtoul(argv[1], NULL, 16);
++
++	/* Length is the number of objects, not number of bytes.
++	*/
++	length = simple_strtoul(argv[2], NULL, 16);
++
++	/* We want to optimize the loops to run as fast as possible.
++	 * If we have only one object, just run infinite loops.
++	 */
++	if (length == 1) {
++		if (size == 4) {
++			longp = (uint *)addr;
++			for (;;)
++				i = *longp;
++		}
++		if (size == 2) {
++			shortp = (ushort *)addr;
++			for (;;)
++				i = *shortp;
++		}
++		cp = (u_char *)addr;
++		for (;;)
++			i = *cp;
++	}
++
++	if (size == 4) {
++		for (;;) {
++			longp = (uint *)addr;
++			i = length;
++			while (i-- > 0)
++				junk = *longp++;
++		}
++	}
++	if (size == 2) {
++		for (;;) {
++			shortp = (ushort *)addr;
++			i = length;
++			while (i-- > 0)
++				junk = *shortp++;
++		}
++	}
++	for (;;) {
++		cp = (u_char *)addr;
++		i = length;
++		while (i-- > 0)
++			junk = *cp++;
++	}
++}
++
++/*
++ * Perform a memory test. A more complete alternative test can be
++ * configured using CFG_ALT_MEMTEST. The complete test loops until
++ * interrupted by ctrl-c or by a failure of one of the sub-tests.
++ */
++int do_mem_mtest ( int argc, char *argv[])
++{
++	vu_long	*addr, *start, *end;
++	ulong	val;
++	ulong	readback;
++
++#if defined(CFG_ALT_MEMTEST)
++	vu_long	addr_mask;
++	vu_long	offset;
++	vu_long	test_offset;
++	vu_long	pattern;
++	vu_long	temp;
++	vu_long	anti_pattern;
++	vu_long	num_words;
++	vu_long *dummy = (vu_long*)CFG_NULL_ADDRESS;
++	int	j;
++	int iterations = 1;
++
++	static const ulong bitpattern[] = {
++		0x00000001,	/* single bit */
++		0x00000003,	/* two adjacent bits */
++		0x00000007,	/* three adjacent bits */
++		0x0000000F,	/* four adjacent bits */
++		0x00000005,	/* two non-adjacent bits */
++		0x00000015,	/* three non-adjacent bits */
++		0x00000055,	/* four non-adjacent bits */
++		0xaaaaaaaa,	/* alternating 1/0 */
++	};
++#else
++	ulong	incr;
++	ulong	pattern;
++	int     rcode = 0;
++#endif
++
++	if (argc > 1) {
++		start = (ulong *)simple_strtoul(argv[1], NULL, 16);
++	} else {
++		start = (ulong *)CFG_MEMTEST_START;
++	}
++
++	if (argc > 2) {
++		end = (ulong *)simple_strtoul(argv[2], NULL, 16);
++	} else {
++		/* ensures end > start */
++		end = (ulong *)(CFG_MEMTEST_END-CFG_MEMTEST_START+start);
++	}
++
++	if (argc > 3) {
++		pattern = (ulong)simple_strtoul(argv[3], NULL, 16);
++	} else {
++		pattern = 0;
++	}
++
++#if defined(CFG_ALT_MEMTEST)
++	printf ("Testing %08x ... %08x:\n", (uint)start, (uint)end);
++	PRINTF("%s:%d: start 0x%p end 0x%p\n",
++		__FUNCTION__, __LINE__, start, end);
++
++	for (;;) {
++		if (ctrlc()) {
++			putc ('\n', stdout);
++			return 1;
++		}
++
++		printf("Iteration: %6d\r", iterations);
++		PRINTF("Iteration: %6d\n", iterations);
++		iterations++;
++
++		/*
++		 * Data line test: write a pattern to the first
++		 * location, write the 1's complement to a 'parking'
++		 * address (changes the state of the data bus so a
++		 * floating bus doen't give a false OK), and then
++		 * read the value back. Note that we read it back
++		 * into a variable because the next time we read it,
++		 * it might be right (been there, tough to explain to
++		 * the quality guys why it prints a failure when the
++		 * "is" and "should be" are obviously the same in the
++		 * error message).
++		 *
++		 * Rather than exhaustively testing, we test some
++		 * patterns by shifting '1' bits through a field of
++		 * '0's and '0' bits through a field of '1's (i.e.
++		 * pattern and ~pattern).
++		 */
++		addr = start;
++		for (j = 0; j < sizeof(bitpattern)/sizeof(bitpattern[0]); j++) {
++		    val = bitpattern[j];
++		    for(; val != 0; val <<= 1) {
++			*addr  = val;
++			*dummy  = ~val; /* clear the test data off of the bus */
++			readback = *addr;
++			if(readback != val) {
++			     printf ("FAILURE (data line): "
++				"expected %08lx, actual %08lx\n",
++					  val, readback);
++			}
++			*addr  = ~val;
++			*dummy  = val;
++			readback = *addr;
++			if(readback != ~val) {
++			    printf ("FAILURE (data line): "
++				"Is %08lx, should be %08lx\n",
++					val, readback);
++			}
++		    }
++		}
++
++		/*
++		 * Based on code whose Original Author and Copyright
++		 * information follows: Copyright (c) 1998 by Michael
++		 * Barr. This software is placed into the public
++		 * domain and may be used for any purpose. However,
++		 * this notice must not be changed or removed and no
++		 * warranty is either expressed or implied by its
++		 * publication or distribution.
++		 */
++
++		/*
++		 * Address line test
++		 *
++		 * Description: Test the address bus wiring in a
++		 *              memory region by performing a walking
++		 *              1's test on the relevant bits of the
++		 *              address and checking for aliasing.
++		 *              This test will find single-bit
++		 *              address failures such as stuck -high,
++		 *              stuck-low, and shorted pins. The base
++		 *              address and size of the region are
++		 *              selected by the caller.
++		 *
++		 * Notes:	For best results, the selected base
++		 *              address should have enough LSB 0's to
++		 *              guarantee single address bit changes.
++		 *              For example, to test a 64-Kbyte
++		 *              region, select a base address on a
++		 *              64-Kbyte boundary. Also, select the
++		 *              region size as a power-of-two if at
++		 *              all possible.
++		 *
++		 * Returns:     0 if the test succeeds, 1 if the test fails.
++		 *
++		 * ## NOTE ##	Be sure to specify start and end
++		 *              addresses such that addr_mask has
++		 *              lots of bits set. For example an
++		 *              address range of 01000000 02000000 is
++		 *              bad while a range of 01000000
++		 *              01ffffff is perfect.
++		 */
++		addr_mask = ((ulong)end - (ulong)start)/sizeof(vu_long);
++		pattern = (vu_long) 0xaaaaaaaa;
++		anti_pattern = (vu_long) 0x55555555;
++
++		PRINTF("%s:%d: addr mask = 0x%.8lx\n",
++			__FUNCTION__, __LINE__,
++			addr_mask);
++		/*
++		 * Write the default pattern at each of the
++		 * power-of-two offsets.
++		 */
++		for (offset = 1; (offset & addr_mask) != 0; offset <<= 1) {
++			start[offset] = pattern;
++		}
++
++		/*
++		 * Check for address bits stuck high.
++		 */
++		test_offset = 0;
++		start[test_offset] = anti_pattern;
++
++		for (offset = 1; (offset & addr_mask) != 0; offset <<= 1) {
++		    temp = start[offset];
++		    if (temp != pattern) {
++			printf ("\nFAILURE: Address bit stuck high @ 0x%.8lx:"
++				" expected 0x%.8lx, actual 0x%.8lx\n",
++				(ulong)&start[offset], pattern, temp);
++			return 1;
++		    }
++		}
++		start[test_offset] = pattern;
++
++		/*
++		 * Check for addr bits stuck low or shorted.
++		 */
++		for (test_offset = 1; (test_offset & addr_mask) != 0; test_offset <<= 1) {
++		    start[test_offset] = anti_pattern;
++
++		    for (offset = 1; (offset & addr_mask) != 0; offset <<= 1) {
++			temp = start[offset];
++			if ((temp != pattern) && (offset != test_offset)) {
++			    printf ("\nFAILURE: Address bit stuck low or shorted @"
++				" 0x%.8lx: expected 0x%.8lx, actual 0x%.8lx\n",
++				(ulong)&start[offset], pattern, temp);
++			    return 1;
++			}
++		    }
++		    start[test_offset] = pattern;
++		}
++
++		/*
++		 * Description: Test the integrity of a physical
++		 *		memory device by performing an
++		 *		increment/decrement test over the
++		 *		entire region. In the process every
++		 *		storage bit in the device is tested
++		 *		as a zero and a one. The base address
++		 *		and the size of the region are
++		 *		selected by the caller.
++		 *
++		 * Returns:     0 if the test succeeds, 1 if the test fails.
++		 */
++		num_words = ((ulong)end - (ulong)start)/sizeof(vu_long) + 1;
++
++		/*
++		 * Fill memory with a known pattern.
++		 */
++		for (pattern = 1, offset = 0; offset < num_words; pattern++, offset++) {
++			start[offset] = pattern;
++		}
++
++		/*
++		 * Check each location and invert it for the second pass.
++		 */
++		for (pattern = 1, offset = 0; offset < num_words; pattern++, offset++) {
++		    temp = start[offset];
++		    if (temp != pattern) {
++			printf ("\nFAILURE (read/write) @ 0x%.8lx:"
++				" expected 0x%.8lx, actual 0x%.8lx)\n",
++				(ulong)&start[offset], pattern, temp);
++			return 1;
++		    }
++
++		    anti_pattern = ~pattern;
++		    start[offset] = anti_pattern;
++		}
++
++		/*
++		 * Check each location for the inverted pattern and zero it.
++		 */
++		for (pattern = 1, offset = 0; offset < num_words; pattern++, offset++) {
++		    anti_pattern = ~pattern;
++		    temp = start[offset];
++		    if (temp != anti_pattern) {
++			printf ("\nFAILURE (read/write): @ 0x%.8lx:"
++				" expected 0x%.8lx, actual 0x%.8lx)\n",
++				(ulong)&start[offset], anti_pattern, temp);
++			return 1;
++		    }
++		    start[offset] = 0;
++		}
++	}
++
++#else /* The original, quickie test */
++	incr = 1;
++	for (;;) {
++		if (ctrlc()) {
++			putc ('\n', stdout);
++			return 1;
++		}
++
++		printf ("\rPattern %08lX  Writing..."
++			"%12s"
++			"\b\b\b\b\b\b\b\b\b\b",
++			pattern, "");
++
++		for (addr=start,val=pattern; addr<end; addr++) {
++			*addr = val;
++			val  += incr;
++		}
++
++		printf("Reading...");
++
++		for (addr=start,val=pattern; addr<end; addr++) {
++			readback = *addr;
++			if (readback != val) {
++				printf ("\nMem error @ 0x%08X: "
++					"found %08lX, expected %08lX\n",
++					(uint)addr, readback, val);
++				rcode = 1;
++			}
++			val += incr;
++		}
++
++		/*
++		 * Flip the pattern each time to make lots of zeros and
++		 * then, the next time, lots of ones.  We decrement
++		 * the "negative" patterns and increment the "positive"
++		 * patterns to preserve this feature.
++		 */
++		if(pattern & 0x80000000) {
++			pattern = -pattern;	/* complement & increment */
++		}
++		else {
++			pattern = ~pattern;
++		}
++		incr = -incr;
++	}
++	return rcode;
++#endif
++}
++
++static void
++do_mod_mem(ulong addr, ulong size, ulong value)
++{
++	switch( size ){
++	case 4:
++		*((uint   *)addr) = value; break;
++	case 2:
++		*((ushort *)addr) = value; break;
++	default:
++		*((u_char *)addr) = value;
++	}
++}
++
++/* Modify memory.
++ *
++ * Syntax:
++ *	mm{.b, .w, .l} {addr} [value]
++ *	nm{.b, .w, .l} {addr} [value]
++ *
++ * if [value], set and quit silently (batch mode), else prompt:
++ * user responses:
++ * hexdigit - set the value
++ * = - rescan same value
++ * -   back up if incrflag, else rescan
++ * +   step addr if incrflag, else rescan
++ * \n  ditto
++ * .   drop out
++ */
++static int
++mod_mem( int incrflag, int argc, char *argv[])
++{
++	ulong	addr, size, i;
++	int	nbytes;
++	int     done = 0;
++	static char console_buffer[BUFSIZ];
++	int batch_mode = 0;
++	ulong batch_value = 1;
++
++	switch(argc){
++	case 3:
++		batch_mode = 1;
++		batch_value = simple_strtoul(argv[2], NULL, 16);
++		break;
++	case 2:
++		break;
++	default:
++		printf ("Usage:\n%s\n", "mm{.b, .w, .l} {addr} [value]");
++		return 1;
++	}
++
++#ifdef CONFIG_BOOT_RETRY_TIME
++	reset_cmd_timeout();	/* got a good command to get here */
++#endif
++	/* We use the last specified parameters, unless new ones are
++	 * entered.
++	 */
++	addr = mm_last_addr;
++	size = mm_last_size;
++
++	if (!cmd_repeat()) {
++		/* New command specified.  Check for a size specification.
++		 * Defaults to long if no or incorrect specification.
++		 */
++		size = cmd_get_data_size(argv[0], 4);
++
++		/* Address is specified since argc > 1
++		 */
++		addr = simple_strtoul(argv[1], NULL, 16);
++		addr += base_address;
++	}
++
++	if (batch_mode){
++		do_mod_mem(addr, size, batch_value);
++		return 0;
++	}
++	/* Print the address, followed by value.  Then accept input for
++	 * the next value.  A non-converted value exits.
++	 */
++	while( !done ){
++		display_pa(addr);
++
++		switch( size ){
++		case 4:
++			printf(" %08x", *((uint   *)addr)); break;
++		case 2:
++			printf(" %04x", *((ushort *)addr)); break;
++		default:
++			printf(" %02x", *((u_char *)addr));
++		}
++
++		nbytes = readline (MOD_PROMPT, console_buffer, BUFSIZ);
++
++		switch( console_buffer[0] ){
++		case 'h':
++			printf( "nnnn, =,-,+ . to exit\n" );
++			continue;
++		case '=':
++			continue;
++		case 'q':
++		case '.':
++			done = 1;
++			continue;
++		case '-':
++			addr -= incrflag? size: 0;
++			continue;
++		case '+':
++			addr += incrflag? size: 0;
++			continue;
++		default:
++			if ( !isxdigit( console_buffer[0] ) &&
++			     strlen( console_buffer ) < 3      ){
++				/* most likely a <cr> */
++				addr += incrflag? size: 0;
++				continue;
++			}else{
++				char *endp;
++				i = simple_strtoul(console_buffer, &endp, 16);
++				nbytes = endp - console_buffer;
++				if (nbytes) {
++					do_mod_mem(addr, size, i);
++					addr += incrflag? size: 0;
++				}
++			}
++		}
++	}
++
++	mm_last_addr = addr;
++	mm_last_size = size;
++	return 0;
++}
++
++int do_mem_crc ( int argc, char *argv[])
++{
++	ulong	addr, length;
++	ulong	crc;
++
++	if (argc < 3) {
++		printf ("Usage:\n%s\n", "worktodo");
++		return 1;
++	}
++
++	addr = simple_strtoul(argv[1], NULL, 16);
++	addr += base_address;
++
++	length = simple_strtoul(argv[2], NULL, 16);
++#if 0
++	crc = crc32 (0, (const uchar *)addr, length);
++
++	printf ("CRC32 for %08lx ... %08lx ==> %08lx\n",
++		addr, addr + length -1, crc);
++#else
++	printf ("NO CRC\n");
++	if (argc > 3) {
++	    ulong   *ptr;
++	    ptr = (ulong *)simple_strtoul(argv[3], NULL, 16);
++	    *ptr = crc;
++	}
++#endif
++
++	return 0;
++}
++
+diff -urN busybox-safe/shell/cmd_mem.h busybox-1.29.3/shell/cmd_mem.h
+--- busybox-safe/shell/cmd_mem.h	1970-01-01 01:00:00.000000000 +0100
++++ busybox-1.29.3/shell/cmd_mem.h	2019-01-02 19:07:23.984068439 +0000
+@@ -0,0 +1,38 @@
++/* ------------------------------------------------------------------------- */
++/* cmd_mem.c memory debug monitor routines for busybox                       */
++/* ------------------------------------------------------------------------- */
++/*   Copyright (C) 2003 Peter Milne, D-TACQ Solutions Ltd
++ *                      <Peter dot Milne at D hyphen TACQ dot com>
++    Provided suitable device drivers are in 
++    This program is free software; you can redistribute it and/or modify
++    it under the terms of Version 2 of the GNU General Public License
++    as published by the Free Software Foundation;
++
++    This program is distributed in the hope that it will be useful,
++    but WITHOUT ANY WARRANTY; without even the implied warranty of
++    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++    GNU General Public License for more details.
++
++    You should have received a copy of the GNU General Public License
++    along with this program; if not, write to the Free Software
++    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.                */
++/* ------------------------------------------------------------------------- */
++
++
++#ifndef _CMD_MEM_H_
++#define _CMD_MEM_H_
++
++extern int do_mem_help(int, char**);
++extern int do_mem_mapping(int, char**);
++extern int do_mem_md(int, char**);
++extern int do_mem_mm(int, char**);
++extern int do_mem_nm(int, char**);
++extern int do_mem_mw(int, char**);
++extern int do_mem_cmp(int, char**);
++extern int do_mem_cp(int, char**);
++extern int do_mem_loop(int, char**);
++extern int do_mem_mtest(int, char**);
++extern int do_mem_crc(int, char**);
++extern void set_mem_exporter( void (*)(const char *, const char *) );
++
++#endif
+diff -urN busybox-safe/shell/Config.src busybox-1.29.3/shell/Config.src
+--- busybox-safe/shell/Config.src	2018-07-02 12:23:06.000000000 +0100
++++ busybox-1.29.3/shell/Config.src	2019-01-02 17:53:17.461134385 +0000
+@@ -161,6 +161,15 @@
+ 	to set shell history size. Note that its max value is capped
+ 	by "History size" setting in library tuning section.
+ 
++config FEATURE_UMON
++	bool "User state MONitor"
++	default n
++	depends on ASH
++	help
++		Set this option to integrate UMON into the shell
++		Allows debug monitor style access to memory mapped files
++		(and devices, assuming device driver support)
++
+ endif # Options common to all shells
+ 
+ endmenu
+diff -urN busybox-safe/shell/Kbuild.src busybox-1.29.3/shell/Kbuild.src
+--- busybox-safe/shell/Kbuild.src	2018-07-02 12:23:06.000000000 +0100
++++ busybox-1.29.3/shell/Kbuild.src	2019-01-02 17:31:50.164341489 +0000
+@@ -9,3 +9,5 @@
+ INSERT
+ 
+ lib-$(CONFIG_FEATURE_SH_MATH) += math.o
++lib-$(CONFIG_FEATURE_UMON) += cmd_mem.o
++

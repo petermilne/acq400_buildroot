@@ -1,0 +1,66 @@
+#!/bin/sh
+
+PACKROOT=${1:-/mnt/packages/}
+DTROOT=/proc/device-tree/chosen
+
+L05_done=0
+
+load_package() {
+	fn=$1
+	pn=$2
+	echo "++ Loading Package $fn"
+	tar xzf $package -C /
+	if [ -f /usr/local/init/${pn}.init ]; then
+		/usr/local/init/${pn}.init
+	fi	
+}
+
+_do_mach_package() {
+	fn=$1
+	pn=$2
+	model=$
+}
+
+do_mach_package() {
+	fn=$1
+	pn=$2
+	dt_good=0
+
+	for dt_model in ${DTROOT}/model ${DTROOT}/compatible_model
+	do
+		if [ -e $dt_model ]; then
+			model=$(cat $dt_model)
+			if [ "$model" = "$pn" ]; then
+				echo "+++ model $pn load support"
+				load_package $fn $pn
+				L05_done=1
+				return
+			fi
+			dt_good=1
+		fi
+	done			
+
+	if [ $dt_good -ne 1 ]; then
+		echo +++ WARNING: OLD DEVICETREE /proc/device-tree/chosen/model not found
+		echo +++ unpack and hope for the best ..
+		load_package $fn $pn
+	fi
+}
+
+echo "++ Loading packages from ${PACKROOT}"
+for package in ${PACKROOT}/??-*.tgz
+do
+	if [ -e $package ]; then
+		FN=$(basename ${package})
+		FNP=${FN%-*}
+		PN=${FNP#*-}
+		SEQ=${FN%%-*}
+		if [ "$SEQ" = "05" ]; then
+			if [ $L05_done -eq 0 ]; then
+				do_mach_package $FN $PN
+			fi
+		else
+			load_package $FN $PN					
+		fi
+	fi
+done

@@ -1,0 +1,152 @@
+#!/bin/sh
+
+echo "Starting rcS..."
+
+
+syslogd -C400
+
+echo "++ Mounting filesystem"
+mkdir -p /dev/pts /dev/shm
+mount -a
+
+# PS1=DBG1: /bin/sh
+
+echo "++ Mounting main fs"
+if [ -e /mnt/rootfs.ext2.gz ]; then
+	ln -s /bin/busybox /bin/awk
+	[ -e /mnt/rootfs.ext2 ] && rm /mnt/rootfs.ext2
+	sync;sync;
+	echo "+++ first time extract /mnt/rootfs.ext2.gz boot .."
+	(while [ 1 ]; do sleep 1; ls -l /mnt/rootfs.ext2 | awk '{ print $9" "$5 }'; done) & MON=$!
+	(gunzip /mnt/rootfs.ext2.gz & wait)
+	kill -9 $MON; wait
+	rm /bin/awk
+fi
+
+mkdir /mnt2
+mount -o loop,ro -t ext2 /mnt/rootfs.ext2 /mnt2
+(cd /mnt2/usr
+	for file in *; do
+		case $file in
+		local)
+			echo skip $file;;
+		share)
+			mkdir -p /usr/share/;
+			cp -a /mnt2/usr/share/udhcpc /usr/share;;
+		*)
+			if [ -d $file ]; then
+				mkdir -p /usr/$file; mount --bin $file /usr/$file
+			fi;;
+		esac
+	done
+)
+
+# fixup to protect existing packages
+mkdir -p /usr/local/bin /usr/local/lib/modules
+ln -s /usr/bin/procServ /usr/local/bin
+ln -s /usr/bin/expect /usr/local/bin
+
+export PATH=$PATH:/usr/local/bin
+export LD_LIBRARY_PATH=/usr/local/lib/
+
+cat - >>/etc/profile <<EOF
+export PATH=$PATH
+export LD_LIBRARY_PATH=/usr/local/lib/
+EOF
+
+echo "++ Setting up mdev"
+
+echo /sbin/mdev > /proc/sys/kernel/hotplug
+mdev -s
+
+# PS1=DBG2: /bin/sh
+
+echo "++ Setting hostname"
+for x in $(cat /proc/cmdline)
+do
+	case $x in
+	hostname=*) echo ${x##*=} >/etc/hostname;;
+	esac
+done
+
+	
+# PS1=DBG3: /bin/sh
+
+hostname -F /etc/hostname
+echo "++ Start Lo"
+ifconfig lo up
+
+echo "++ Setting EPOCH 2000 in case there is no NTP later"
+date -s 200001010000
+
+echo "++ Networking .. assigning serial console, use CTRL-C to break"
+if [ -e /mnt/local/network ]; then
+	echo "++ Sourcing /mnt/network.."
+	source /mnt/local/network
+else
+	/etc/network/default-networkrc
+fi
+
+[ -e /mnt/local/ntpd.conf ] && /mnt/local/ntpd.conf
+
+
+# PS1=DBG4: /bin/sh
+
+echo "++ locate kernel modules"
+
+LIBMOD=/lib/modules/$(uname -r)
+mkdir -p $LIBMOD
+touch $LIBMOD/modules.dep
+PKOSTAR=/mnt/ko/packageko-$(uname -r)*.img
+
+if [ -e $PKOSTAR ] && [ $(ls -1 $PKOSTAR | wc -w) -eq 1 ]; then
+	echo PACKAGE KO $PKOSTAR exists, mount it
+	mount $PKOSTAR $LIBMOD
+else
+	export LIBMOD PKOSTAR
+	echo "ERROR $PKOSTAR  unique file does not exist .."
+	if [ $(ls -1 /mnt/ko/package*img | wc -w) -eq 1 ]; then
+		PKOSTAR=/mnt/ko/package*img
+		echo "WARNING: trying this $PKOSTAR"
+		mount $PKOSTAR $LIBMOD
+		[ $? -eq 0 ] || PS1=FIXME: /bin/sh
+	else
+		PS1=FIXME: /bin/sh
+	fi
+fi
+echo +++ bind legacy modules dir /usr/local/lib/modules
+mount --bind $LIBMOD /usr/local/lib/modules
+
+	
+echo "++ Starting http daemon"
+httpd -h /var/www
+
+echo "++ Starting ssh daemon"
+chmod 600 /etc/ssh/*
+/usr/sbin/sshd
+
+
+# PS1=DBG5: /bin/sh
+
+if [ -f /mnt/init.sh ]
+then
+	echo "++ Running user script OVERRIDE init.sh from SD Card"
+     	source /mnt/init.sh
+else
+	/sbin/load.packages /mnt/packages
+fi
+
+# PS1=DBG6: /bin/sh
+
+if [ -x /mnt/local/rc.user ]; then
+	echo ++ calling /mnt/local/rc.user
+	/mnt/local/rc.user	
+fi
+
+# PS1=DBG7: /bin/sh
+
+echo $(hostname) $(uptime) > /var/www/d-tacq/rc-local-complete
+echo "++ rcS complete $(cat /var/www/d-tacq/rc-local-complete)"
+
+
+
