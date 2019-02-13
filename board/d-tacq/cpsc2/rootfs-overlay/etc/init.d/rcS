@@ -23,6 +23,7 @@ if [ -e /mnt/rootfs.ext2.gz ]; then
 	rm /bin/awk
 fi
 
+if [ -e /mnt/rootfs.ext2 ]; then
 mkdir /mnt2
 mount -o loop,ro -t ext2 /mnt/rootfs.ext2 /mnt2
 (cd /mnt2/usr
@@ -40,6 +41,7 @@ mount -o loop,ro -t ext2 /mnt/rootfs.ext2 /mnt2
 		esac
 	done
 )
+fi
 
 # fixup to protect existing packages
 mkdir -p /usr/local/bin /usr/local/lib/modules
@@ -97,6 +99,8 @@ echo "++ locate kernel modules"
 LIBMOD=/lib/modules/$(uname -r)
 mkdir -p $LIBMOD
 touch $LIBMOD/modules.dep
+
+pgmcomout() {
 PKOSTAR=/mnt/ko/packageko-$(uname -r)*.img
 
 if [ -e $PKOSTAR ] && [ $(ls -1 $PKOSTAR | wc -w) -eq 1 ]; then
@@ -114,6 +118,7 @@ else
 		PS1=FIXME: /bin/sh
 	fi
 fi
+}
 echo +++ bind legacy modules dir /usr/local/lib/modules
 mount --bind $LIBMOD /usr/local/lib/modules
 

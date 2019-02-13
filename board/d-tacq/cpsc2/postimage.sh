@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-
+notcpsc2() {
 echo POSTIMAGE01
 ls -l output/target
 ls -l output/images
@@ -37,3 +37,5 @@ chmod a+rx $HOST_DIR/fix-initrd
 unset LD_PRELOAD
 LD_LIBRARY_PATH=./output/build/host-fakeroot-1.20.2/.libs ./output/host/bin/fakeroot $HOST_DIR/fix-initrd
 echo POSTIMAGE99
+}
+
