@@ -1,0 +1,16 @@
+#!/bin/sh
+
+cd /tmp
+source /tmp/dhcp.env
+
+echo tftp -l BOOT.BIN -r cpsc2/BOOT_CPSC2.bin -g $siaddr
+tftp -l BOOT.BIN -r cpsc2/BOOT_CPSC2.bin -g $siaddr
+ls -l BOOT.BIN
+flash_erase /dev/mtd0 0 0
+cat BOOT.BIN > /dev/mtd0
+cat /dev/mtd0 > mtd0.cat
+len=$(ls -l BOOT.BIN | awk '{ print $5 }')
+dd if=mtd0.cat bs=$len count=1 of=mtd0.cat.cut 2>/dev/null
+cmp BOOT.BIN mtd0.cat.cut && echo all good $len
+
+
