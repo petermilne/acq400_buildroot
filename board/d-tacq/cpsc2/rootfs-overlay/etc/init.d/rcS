@@ -92,6 +92,12 @@ fi
 [ -e /mnt/local/ntpd.conf ] && /mnt/local/ntpd.conf
 
 
+source /tmp/dhcp.env
+if [ ! -z $rootpath ];then
+	echo "++ NFS boot: rootpath set $rootpath"
+	mount -t nfs -o ro,nolock $rootpath /usr/local
+fi
+
 # PS1=DBG4: /bin/sh
 
 echo "++ locate kernel modules"
@@ -118,9 +124,12 @@ else
 		PS1=FIXME: /bin/sh
 	fi
 fi
-}
 echo +++ bind legacy modules dir /usr/local/lib/modules
 mount --bind $LIBMOD /usr/local/lib/modules
+}
+
+/sbin/insmod /usr/local/lib/modules/xilinx_devcfg.ko
+/sbin/mdev -s
 
 	
 echo "++ Starting http daemon"
@@ -138,14 +147,14 @@ then
 	echo "++ Running user script OVERRIDE init.sh from SD Card"
      	source /mnt/init.sh
 else
-	/sbin/load.packages /mnt/packages
+	/sbin/load.packages /usr/local/packages
 fi
 
 # PS1=DBG6: /bin/sh
 
-if [ -x /mnt/local/rc.user ]; then
-	echo ++ calling /mnt/local/rc.user
-	/mnt/local/rc.user	
+if [ -x /usr/local/rc.user ]; then
+	echo ++ calling /usr/local/rc.user
+	/usr/local/rc.user	
 fi
 
 # PS1=DBG7: /bin/sh

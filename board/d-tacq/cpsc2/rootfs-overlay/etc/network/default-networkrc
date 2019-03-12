@@ -64,7 +64,9 @@ else
 fi
 
 udhcpc -b -a -s/usr/share/udhcpc/default.script  \
-                -x hostname:$(hostname) -p /var/run/udhcpc.eth0.pid
+		-O rootpath \
+                -x hostname:$(hostname) \
+		-p /var/run/udhcpc.eth0.pid
 source /tmp/dhcp.env
 if [ "x$siaddr" != "x" ]; then
         ntpd -p $siaddr
