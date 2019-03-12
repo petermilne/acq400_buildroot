@@ -11,38 +11,6 @@ mount -a
 
 # PS1=DBG1: /bin/sh
 
-echo "++ Mounting main fs"
-if [ -e /mnt/rootfs.ext2.gz ]; then
-	ln -s /bin/busybox /bin/awk
-	[ -e /mnt/rootfs.ext2 ] && rm /mnt/rootfs.ext2
-	sync;sync;
-	echo "+++ first time extract /mnt/rootfs.ext2.gz boot .."
-	(while [ 1 ]; do sleep 1; ls -l /mnt/rootfs.ext2 | awk '{ print $9" "$5 }'; done) & MON=$!
-	(gunzip /mnt/rootfs.ext2.gz & wait)
-	kill -9 $MON; wait
-	rm /bin/awk
-fi
-
-if [ -e /mnt/rootfs.ext2 ]; then
-mkdir /mnt2
-mount -o loop,ro -t ext2 /mnt/rootfs.ext2 /mnt2
-(cd /mnt2/usr
-	for file in *; do
-		case $file in
-		local)
-			echo skip $file;;
-		share)
-			mkdir -p /usr/share/;
-			cp -a /mnt2/usr/share/udhcpc /usr/share;;
-		*)
-			if [ -d $file ]; then
-				mkdir -p /usr/$file; mount --bin $file /usr/$file
-			fi;;
-		esac
-	done
-)
-fi
-
 # fixup to protect existing packages
 mkdir -p /usr/local/bin /usr/local/lib/modules
 ln -s /usr/bin/procServ /usr/local/bin
@@ -96,37 +64,13 @@ source /tmp/dhcp.env
 if [ ! -z $rootpath ];then
 	echo "++ NFS boot: rootpath set $rootpath"
 	mount -t nfs -o ro,nolock $rootpath /usr/local
+else
+	echo "++ second stage diskless image fetch required WORKTODO"
+	PS1=DBG4: /bin/sh
 fi
 
-# PS1=DBG4: /bin/sh
 
 echo "++ locate kernel modules"
-
-LIBMOD=/lib/modules/$(uname -r)
-mkdir -p $LIBMOD
-touch $LIBMOD/modules.dep
-
-pgmcomout() {
-PKOSTAR=/mnt/ko/packageko-$(uname -r)*.img
-
-if [ -e $PKOSTAR ] && [ $(ls -1 $PKOSTAR | wc -w) -eq 1 ]; then
-	echo PACKAGE KO $PKOSTAR exists, mount it
-	mount $PKOSTAR $LIBMOD
-else
-	export LIBMOD PKOSTAR
-	echo "ERROR $PKOSTAR  unique file does not exist .."
-	if [ $(ls -1 /mnt/ko/package*img | wc -w) -eq 1 ]; then
-		PKOSTAR=/mnt/ko/package*img
-		echo "WARNING: trying this $PKOSTAR"
-		mount $PKOSTAR $LIBMOD
-		[ $? -eq 0 ] || PS1=FIXME: /bin/sh
-	else
-		PS1=FIXME: /bin/sh
-	fi
-fi
-echo +++ bind legacy modules dir /usr/local/lib/modules
-mount --bind $LIBMOD /usr/local/lib/modules
-}
 
 /sbin/insmod /usr/local/lib/modules/xilinx_devcfg.ko
 /sbin/mdev -s
@@ -139,20 +83,20 @@ echo "++ Starting ssh daemon"
 chmod 600 /etc/ssh/*
 /usr/sbin/sshd
 
-
-# PS1=DBG5: /bin/sh
-
-if [ -f /mnt/init.sh ]
-then
-	echo "++ Running user script OVERRIDE init.sh from SD Card"
-     	source /mnt/init.sh
+if [ -e /usr/local/CPSC2_TOP_02_43.bit.gz ]; then
+	echo "++ Loading FPGA /usr/local/CPSC2_TOP_02_43.bit.gz"
+	gunzip -c /usr/local/CPSC2_TOP_02_43.bit.gz | xiloader -L
+	echo "++ FPGA Load complete"
 else
-	/sbin/load.packages /usr/local/packages
+	echo "FPGA image not found dropping out to shell"
+	PS1=DBG5: /bin/sh
 fi
+
+/usr/local/bin/load.packages /usr/local/packages
 
 # PS1=DBG6: /bin/sh
 
-if [ -x /usr/local/rc.user ]; then
+if [ -x /usr/local/init/rc.user ]; then
 	echo ++ calling /usr/local/rc.user
 	/usr/local/rc.user	
 fi
