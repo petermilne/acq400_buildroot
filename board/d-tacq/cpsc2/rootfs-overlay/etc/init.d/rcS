@@ -70,11 +70,6 @@ else
 fi
 
 
-echo "++ locate kernel modules"
-
-/sbin/insmod /usr/local/lib/modules/xilinx_devcfg.ko
-/sbin/mdev -s
-
 echo "++ Starting ssh daemon"
 chmod 600 /etc/ssh/*
 /usr/sbin/sshd
