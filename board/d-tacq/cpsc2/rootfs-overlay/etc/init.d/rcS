@@ -75,22 +75,9 @@ echo "++ locate kernel modules"
 /sbin/insmod /usr/local/lib/modules/xilinx_devcfg.ko
 /sbin/mdev -s
 
-	
-echo "++ Starting http daemon"
-httpd -h /var/www
-
 echo "++ Starting ssh daemon"
 chmod 600 /etc/ssh/*
 /usr/sbin/sshd
-
-if [ -e /usr/local/CPSC2_TOP_02_43.bit.gz ]; then
-	echo "++ Loading FPGA /usr/local/CPSC2_TOP_02_43.bit.gz"
-	gunzip -c /usr/local/CPSC2_TOP_02_43.bit.gz | xiloader -L
-	echo "++ FPGA Load complete"
-else
-	echo "FPGA image not found dropping out to shell"
-	PS1=DBG5: /bin/sh
-fi
 
 /usr/local/bin/load.packages /usr/local/packages
 
