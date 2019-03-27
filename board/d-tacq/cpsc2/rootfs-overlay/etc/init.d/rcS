@@ -2,7 +2,7 @@
 
 echo "Starting rcS..."
 
-
+/sbin/mdev -s
 syslogd -C400
 
 echo "++ Mounting filesystem"
@@ -63,7 +63,17 @@ fi
 source /tmp/dhcp.env
 if [ ! -z $rootpath ];then
 	echo "++ NFS boot: rootpath set $rootpath"
-	mount -t nfs -o ro,nolock $rootpath /usr/local
+	MD=/usr/.local/mnt
+	mkdir -p $MD; mount -t ramfs ram $MD
+	LD=/usr/.local/nfslocal
+	mkdir -p $LD
+	UD=/usr/.local/mnt/local
+	WD=/usr/.local/mnt/work
+	mkdir -p $UD $WD
+	mount -t nfs -o ro,nolock $rootpath /usr/.local/nfslocal
+	mount -t overlay overlay \
+		-olowerdir=$LD,upperdir=$UD,workdir=$WD	/usr/local
+	echo "++ overlay $LD,$UD => /usr/local mounted"
 else
 	echo "++ second stage diskless image fetch required WORKTODO"
 	PS1=DBG4: /bin/sh
@@ -78,9 +88,11 @@ chmod 600 /etc/ssh/*
 
 # PS1=DBG6: /bin/sh
 
-if [ -x /usr/local/init/rc.user ]; then
-	echo ++ calling /usr/local/rc.user
-	/usr/local/rc.user	
+
+RCUSER=/mnt/local/rc.user
+if [ -x $RCUSER ]; then
+	echo ++ calling $RCUSER
+	$RCUSER
 fi
 
 # PS1=DBG7: /bin/sh
