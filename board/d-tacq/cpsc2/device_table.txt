@@ -7,4 +7,5 @@
 #
 # <name>                                <type>  <mode>  <uid>   <gid>   <major> <minor> <start> <inc>   <count>
 /etc/fstab				f	644	0	0	-	-	-	-	-
+/dev/null				c	666	0	0	1	3
 

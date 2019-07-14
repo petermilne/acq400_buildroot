@@ -10,5 +10,5 @@ devpts	/dev/pts		devpts	gid=5,mode=620	0 0
 none	/sys/kernel/debug/	debugfs	defaults	0 0
 ramfs 	/usr/local/		ramfs	defaults	0 0 	
 
-/dev/mmcblk0p1	/mnt		auto	defaults	0 0
-/dev/mmcblk0	/mnt		auto	defaults	0 0
+/dev/mmcblk0p1	/mnt		auto	defaults,noauto	0 0
+#/dev/mmcblk0	/mnt		auto	defaults,noauto	0 0

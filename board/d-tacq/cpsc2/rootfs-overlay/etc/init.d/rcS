@@ -1,13 +1,13 @@
 #!/bin/sh
 
-echo "Starting rcS..."
-
+echo "Starting rcS... pgm 20190714"
 /sbin/mdev -s
 syslogd -C400
 
 echo "++ Mounting filesystem"
 mkdir -p /dev/pts /dev/shm
 mount -a
+mount /mnt
 
 # PS1=DBG1: /bin/sh
 
