@@ -61,8 +61,24 @@ fi
 
 
 source /tmp/dhcp.env
+boot_with_nfs=1
 if [ ! -z $rootpath ];then
-	echo "++ NFS boot: rootpath set $rootpath"
+	nfstrip=${rootpath#nfs://*}
+	tftpstrip=${rootpath#tftp://*}
+	if [ "x$nfstrip" != "x$rootpath" ]; then
+		rootpath=$nfstrip
+		echo "++ NFS boot: nfs:// URI rootpath set $rootpath"
+	elif [ "x$tftpstrip" != "x$rootpath" ]; then
+		echo "++ TFTPBOOT $tftpstrip"
+		rootpath=$tftpstrip
+		boot_with_nfs=0
+	else
+		echo "++ NFS boot: old school rootpath set $rootpath"
+	fi
+else
+	PS1=DBG3: /bin/sh
+fi
+if [ $boot_with_nfs -eq 1 ]; then
 	MD=/usr/.local/mnt
 	mkdir -p $MD; mount -t ramfs ram $MD
 	LD=/usr/.local/nfslocal
@@ -75,8 +91,19 @@ if [ ! -z $rootpath ];then
 		-olowerdir=$LD,upperdir=$UD,workdir=$WD	/usr/local
 	echo "++ overlay $LD,$UD => /usr/local mounted"
 else
-	echo "++ second stage diskless image fetch required WORKTODO"
-	PS1=DBG4: /bin/sh
+	echo "++ second stage diskless tftp get rootpath=$rootpath"
+	tftp_host=${rootpath%:*}
+	tftp_path=${rootpath#*:}
+	tarfile=/tmp/$(basename $tftp_path)
+	tftp -l $tarfile -r $tftp_path -g $tftp_host &&
+	sha1sum $tarfile &&
+	tar xzf $tarfile -C / 
+	if [ $? -eq 0 ]; then
+		echo "++ successful extract: clean up and continue"
+		rm $tarfile
+	else
+		PS1=DBG4: /bin/sh
+	fi
 fi
 
 
