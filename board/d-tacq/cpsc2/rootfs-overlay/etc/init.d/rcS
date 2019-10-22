@@ -106,7 +106,8 @@ else
 		PS1=DBG4: /bin/sh
 	fi
 	CUSTOM=39-custom_$(hostname).tgz
-	tftp -l /usr/local/packages/$CUSTOM -r $tftp_base/custom/$CUSTOM -g $tftp_host
+	CUSTOM_ANON=${CUSTOM%_*}.tgz
+	tftp -l /usr/local/packages/$CUSTOM_ANON -r $tftp_base/custom/$CUSTOM -g $tftp_host
 	if [ $? -eq 0 ]; then
 		echo "++ fetched custom package $CUSTOM"
 	else
