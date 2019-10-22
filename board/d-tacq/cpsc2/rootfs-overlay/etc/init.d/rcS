@@ -95,6 +95,7 @@ else
 	tftp_host=${rootpath%:*}
 	tftp_path=${rootpath#*:}
 	tarfile=/tmp/$(basename $tftp_path)
+	tftp_base=$(dirname $tftp_path)
 	tftp -l $tarfile -r $tftp_path -g $tftp_host &&
 	sha1sum $tarfile &&
 	tar xzf $tarfile -C / 
@@ -104,6 +105,14 @@ else
 	else
 		PS1=DBG4: /bin/sh
 	fi
+	CUSTOM=39-custom_$(hostname).tgz
+	tftp -l /usr/local/packages/$CUSTOM -r $tftp_base/custom/$CUSTOM -g $tftp_host
+	if [ $? -eq 0 ]; then
+		echo "++ fetched custom package $CUSTOM"
+	else
+		echo "++ did not find custom package $CUSTOM"
+	fi
+
 fi
 
 
