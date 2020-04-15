@@ -16,21 +16,21 @@ load_package() {
 		tar xzf $pp -C /
 		[ -f /usr/local/init/${pn}.init ] && /usr/local/init/${pn}.init;;
 	*.img)
-		mp=/usr/local/$fn
+		mp=/usr/local/$pn
 		echo "++ Loading img Package $fn at $mp"
 
 		mkdir -p $mp
-		mount $pn $mp
+		mount $pp $mp
 		[ -e $mp/$pn.init ] && $mp/$pn.init;;
 	*.ovl)
-                mp=/usr/local/$fn
+                mp=/usr/local/$pn
 		echo "++ Loading OVERLAY img Package: $fn at $mp"
 		md=/usr/.local/
 		ld=$md/$fn.lower
 		ud=$md/$fn.upper
 		wd=$md/$fn.work
 		mkdir -p $ld $ud $wd $mp
-		mount $pn $ld
+		mount $pp $ld
 		mount -t overlay overlay \
 			-o lowerdir=$ld,upperdir=$ud,workdir=$wd $mp
                 [ -e $mp/$pn.init ] && $mp/$pn.init;;
