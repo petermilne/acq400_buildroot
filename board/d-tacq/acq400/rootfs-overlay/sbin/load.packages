@@ -6,13 +6,34 @@ DTROOT=/proc/device-tree/chosen
 L05_done=0
 
 load_package() {
-	fn=$1
-	pn=$2
-	echo "++ Loading Package $fn"
-	tar xzf $package -C /
-	if [ -f /usr/local/init/${pn}.init ]; then
-		/usr/local/init/${pn}.init
-	fi	
+	pp=$1
+	fn=$2
+	pn=$3
+	case $pp in
+	*.tgz)
+		echo "++ Loading Package $fn"
+		tar xzf $pp -C /
+		if [ -f /usr/local/init/${pn}.init ]; then
+			/usr/local/init/${pn}.init
+		fi;;
+	*.img)
+		mp=/usr/local/$fn
+		echo "++ Loading img Package $fn at $mp"
+
+		mkdir -p $mp
+		mount $pn $mp
+		[ -e $mp/$fn.init ] && $mp/$fn.init;;
+	*.ovl)
+		echo ++ OVERLAY img Package: WORKTODO
+                mp=/usr/local/$fn
+                echo "++ Loading img Package $fn at $mp"
+
+                mkdir -p $mp
+                mount $pn $mp
+                [ -e $mp/$fn.init ] && $mp/$fn.init;;
+	*)
+		echo WARNING: unknown file type $pp;;
+	esac
 }
 
 _do_mach_package() {
@@ -48,7 +69,7 @@ do_mach_package() {
 }
 
 echo "++ Loading packages from ${PACKROOT}"
-for package in ${PACKROOT}/??-*.tgz
+for package in ${PACKROOT}/??-*.???
 do
 	if [ -e $package ]; then
 		FN=$(basename ${package})
@@ -60,7 +81,7 @@ do
 				do_mach_package $FN $PN
 			fi
 		else
-			load_package $FN $PN					
+			load_package $package $FN $PN
 		fi
 	fi
 done
