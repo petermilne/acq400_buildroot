@@ -5,6 +5,7 @@ DTROOT=/proc/device-tree/chosen
 
 L05_done=0
 
+# pp=package_path fn=filename pn=packagename
 load_package() {
 	pp=$1
 	fn=$2
@@ -13,24 +14,26 @@ load_package() {
 	*.tgz)
 		echo "++ Loading Package $fn"
 		tar xzf $pp -C /
-		if [ -f /usr/local/init/${pn}.init ]; then
-			/usr/local/init/${pn}.init
-		fi;;
+		[ -f /usr/local/init/${pn}.init ] && /usr/local/init/${pn}.init;;
 	*.img)
 		mp=/usr/local/$fn
 		echo "++ Loading img Package $fn at $mp"
 
 		mkdir -p $mp
 		mount $pn $mp
-		[ -e $mp/$fn.init ] && $mp/$fn.init;;
+		[ -e $mp/$pn.init ] && $mp/$pn.init;;
 	*.ovl)
-		echo ++ OVERLAY img Package: WORKTODO
                 mp=/usr/local/$fn
-                echo "++ Loading img Package $fn at $mp"
-
-                mkdir -p $mp
-                mount $pn $mp
-                [ -e $mp/$fn.init ] && $mp/$fn.init;;
+		echo "++ Loading OVERLAY img Package: $fn at $mp"
+		md=/usr/.local/
+		ld=$md/$fn.lower
+		ud=$md/$fn.upper
+		wd=$md/$fn.work
+		mkdir -p $ld $ud $wd $mp
+		mount $pn $ld
+		mount -t overlay overlay \
+			-o lowerdir=$ld,upperdir=$ud,workdir=$wd $mp
+                [ -e $mp/$pn.init ] && $mp/$pn.init;;
 	*)
 		echo WARNING: unknown file type $pp;;
 	esac
