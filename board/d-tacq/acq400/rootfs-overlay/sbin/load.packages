@@ -39,15 +39,10 @@ load_package() {
 	esac
 }
 
-_do_mach_package() {
-	fn=$1
-	pn=$2
-	model=$
-}
-
 do_mach_package() {
-	fn=$1
-	pn=$2
+	pp=$1
+	fn=$2
+	pn=$3
 	dt_good=0
 
 	for dt_model in ${DTROOT}/model ${DTROOT}/compatible_model
@@ -56,7 +51,7 @@ do_mach_package() {
 			model=$(cat $dt_model)
 			if [ "$model" = "$pn" ]; then
 				echo "+++ model $pn load support"
-				load_package $fn $pn
+				load_package $pp $fn $pn
 				L05_done=1
 				return
 			fi
@@ -67,7 +62,7 @@ do_mach_package() {
 	if [ $dt_good -ne 1 ]; then
 		echo +++ WARNING: OLD DEVICETREE /proc/device-tree/chosen/model not found
 		echo +++ unpack and hope for the best ..
-		load_package $fn $pn
+		load_package $pp $fn $pn
 	fi
 }
 
@@ -81,7 +76,7 @@ do
 		SEQ=${FN%%-*}
 		if [ "$SEQ" = "05" ]; then
 			if [ $L05_done -eq 0 ]; then
-				do_mach_package $FN $PN
+				do_mach_package $package $FN $PN
 			fi
 		else
 			load_package $package $FN $PN
