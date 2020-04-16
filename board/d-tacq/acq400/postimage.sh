@@ -2,8 +2,19 @@
 
 
 echo POSTIMAGE01
+
+echo BEFORE
+ls -l output/target/usr/sbin/nologin
+ls -l output/target/usr/sbin/ntpd
+mv output/target/usr/sbin/ntpd output/target/usr/sbin/ntpd.orig
+(cd output/target/usr/sbin/; ln -s ../../bin/busybox ntpd)
+echo AFTER
+ls -l output/target/usr/sbin/ntpd*
+
 ls -l output/target
 ls -l output/images
+
+
 for arg in BR2_CONFIG HOST_DIR STAGING_DIR TARGET_DIR BUILD_DIR BINARIES_DIR and BASE_DIR
 do
 	echo $arg $(env | grep $arg)
