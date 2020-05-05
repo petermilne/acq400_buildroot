@@ -5,4 +5,5 @@ umon:
     (cd output/build/busybox-1.29.3;
 	 patch -p1 < ../../../board/d-tacq/acq400/umon.patch)
 
+libreadline.7 : temporary overlay REMOVEME
 
