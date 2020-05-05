@@ -1,9 +1,6 @@
 umon:
     nb manual intervention needed :-(
-    build once, then
-    cp busybox.config output/build/busybox-1.29.3/.config
-    (cd output/build/busybox-1.29.3;
-	 patch -p1 < ../../../board/d-tacq/acq400/umon.patch)
+    ./board/d-tacq/acq400/patch_busybox_umon
 
 libreadline.7 : temporary overlay REMOVEME
 

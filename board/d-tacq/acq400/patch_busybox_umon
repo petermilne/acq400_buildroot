@@ -1,0 +1,14 @@
+#!/usr/bin/bash
+
+echo "Running patches now."
+latest_busybox=$(ls -1d output/build/busy* | tail -1)
+cp board/d-tacq/acq400/busybox.config $latest_busybox/.config
+UMON_PATCH=$PWD/board/d-tacq/acq400/umon.patch
+(
+cd $latest_busybox
+echo $PWD $UMON_PATCH
+patch -p1 < $UMON_PATCH
+)
+
+make busybox-rebuild
+
