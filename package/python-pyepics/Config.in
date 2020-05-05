@@ -1,0 +1,6 @@
+config BR2_PACKAGE_PYTHON_PYEPICS
+	bool "python-pyepics"
+	help
+	  Epics Channel Access for Python.
+
+	  http://pyepics.github.io/pyepics/

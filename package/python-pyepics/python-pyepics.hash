@@ -1,0 +1,5 @@
+# md5, sha256 from https://pypi.org/pypi/pyepics/json
+md5	2d33984af1a0c1e9650fe6cafdb9434c  pyepics-3.4.1.tar.gz
+sha256	112c5bb3ccd8290c05ef044869d24cbe5e27de474f56c5afbf33c1cf547794e9  pyepics-3.4.1.tar.gz
+# Locally computed sha256 checksums
+sha256	5ec126ca5496dd3e9d5387329f8034e387db8b1f88faeca15f30aee0d91ae1b2  LICENSE
