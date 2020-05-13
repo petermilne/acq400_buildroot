@@ -5,25 +5,44 @@ DTROOT=/proc/device-tree/chosen
 
 L05_done=0
 
+# pp=package_path fn=filename pn=packagename
 load_package() {
-	fn=$1
-	pn=$2
-	echo "++ Loading Package $fn"
-	tar xzf $package -C /
-	if [ -f /usr/local/init/${pn}.init ]; then
-		/usr/local/init/${pn}.init
-	fi	
-}
+	pp=$1
+	fn=$2
+	pn=$3
+	case $pp in
+	*.tgz)
+		echo "++ Loading Package $fn"
+		tar xzf $pp -C /
+		[ -f /usr/local/init/${pn}.init ] && /usr/local/init/${pn}.init;;
+	*.img)
+		mp=/usr/local/$pn
+		echo "++ Loading img Package $fn at $mp"
 
-_do_mach_package() {
-	fn=$1
-	pn=$2
-	model=$
+		mkdir -p $mp
+		mount $pp $mp
+		[ -e $mp/$pn.init ] && $mp/$pn.init;;
+	*.ovl)
+                mp=/usr/local/$pn
+		echo "++ Loading OVERLAY img Package: $fn at $mp"
+		md=/usr/.local/
+		ld=$md/$fn.lower
+		ud=$md/$fn.upper
+		wd=$md/$fn.work
+		mkdir -p $ld $ud $wd $mp
+		mount $pp $ld
+		mount -t overlay overlay \
+			-o lowerdir=$ld,upperdir=$ud,workdir=$wd $mp
+                [ -e $mp/$pn.init ] && $mp/$pn.init;;
+	*)
+		echo WARNING: unknown file type $pp;;
+	esac
 }
 
 do_mach_package() {
-	fn=$1
-	pn=$2
+	pp=$1
+	fn=$2
+	pn=$3
 	dt_good=0
 
 	for dt_model in ${DTROOT}/model ${DTROOT}/compatible_model
@@ -32,7 +51,7 @@ do_mach_package() {
 			model=$(cat $dt_model)
 			if [ "$model" = "$pn" ]; then
 				echo "+++ model $pn load support"
-				load_package $fn $pn
+				load_package $pp $fn $pn
 				L05_done=1
 				return
 			fi
@@ -43,12 +62,12 @@ do_mach_package() {
 	if [ $dt_good -ne 1 ]; then
 		echo +++ WARNING: OLD DEVICETREE /proc/device-tree/chosen/model not found
 		echo +++ unpack and hope for the best ..
-		load_package $fn $pn
+		load_package $pp $fn $pn
 	fi
 }
 
 echo "++ Loading packages from ${PACKROOT}"
-for package in ${PACKROOT}/??-*.tgz
+for package in ${PACKROOT}/??-*.???
 do
 	if [ -e $package ]; then
 		FN=$(basename ${package})
@@ -57,10 +76,10 @@ do
 		SEQ=${FN%%-*}
 		if [ "$SEQ" = "05" ]; then
 			if [ $L05_done -eq 0 ]; then
-				do_mach_package $FN $PN
+				do_mach_package $package $FN $PN
 			fi
 		else
-			load_package $FN $PN					
+			load_package $package $FN $PN
 		fi
 	fi
 done
