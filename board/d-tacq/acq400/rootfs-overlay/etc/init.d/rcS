@@ -96,14 +96,13 @@ echo "++ Setting EPOCH 2000 in case there is no NTP later"
 date -s 200001010000
 
 echo "++ Networking .. assigning serial console, use CTRL-C to break"
-if [ -e /mnt/local/network ]; then
-	echo "++ Sourcing /mnt/network.."
-	source /mnt/local/network
+LOCAL_NETDEF=/mnt/local/network
+if [ -e $LOCAL_NETDEF ]; then
+	echo "++ Sourcing $LOCAL_NETDEF .."
+	source $LOCAL_NETDEF
 else
 	/etc/network/default-networkrc
 fi
-
-[ -e /mnt/local/ntpd.conf ] && /mnt/local/ntpd.conf
 
 # PS1=DBG4: /bin/sh
 
