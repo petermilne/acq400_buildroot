@@ -82,7 +82,7 @@ start_eth
 if [ "$*" = "" ]; then
 	echo "+++ Starting dhcp daemon [default]"
 	dhcp_killer & killer_pid=$!
-	udhcpc -q -s $DSCRIPT -x hostname:$(hostname) -p $UPID
+	udhcpc -i $ETH -q -s $DSCRIPT -x hostname:$(hostname) -p $UPID
 	if [ $? -ne 0 ]; then
 		echo +++ udhcpc fail, quit
 		exit 1
@@ -94,7 +94,7 @@ if [ "$*" = "" ]; then
 		kill -9 $killer_pid
 		echo +++ dhcp good, remove failsafe $killer_pid
 	fi
-	udhcpc -b -a -s/usr/share/udhcpc/default.script  \
+	udhcpc -i $ETH -b -a -s/usr/share/udhcpc/default.script  \
                 -x hostname:$(hostname) -p /var/run/udhcpc.${ETH}.pid
 	source /tmp/dhcp.env
 else
