@@ -1,27 +1,57 @@
 #!/bin/sh
 
+ETH=${1:-eth0}
+shift
+STATIC_ARGS="$*"
+LINK_UP_TIMEOUT=${LINK_UP_TIMEOUT:-10}
 DSCRIPT=/usr/share/udhcpc/default.script
 UPID=/tmp/udhcpd.pid
 KILLDONE=/tmp/killdone
 
-get_mac_address() {
-	cat /sys/class/net/eth0/address
-}
+
+if [ $LINK_UP_TIMEOUT -gt 999 ]; then
+	wait_dev=0
+	report_dev=0
+	while [ ! -e /sys/class/net/${ETH} ]; do
+		sleep 2
+		wait_dev=$(($wait_dev+2))		
+		report_dev=$((report_dev+1))
+		if [ $report_dev -ge 10 ]; then
+			echo "NET: wait_dev $ETH $wait_dev.."
+			report_dev=0
+		fi
+	done
+fi
+
+
 
 start_eth() {
-        timer=10
-        ifconfig eth0 up
+	if [ ! -e /sys/class/net/${ETH} ]; then
+		echo "NOTICE: /sys/class/net/${ETH} backgrounding.."
+		LINK_UP_TIMEOUT=99999 /etc/network/default-networkrc $ETH $STATIC_ARGS &
+		exit
+	fi
+        ifconfig ${ETH} up
+
+	timer=$LINK_UP_TIMEOUT
         while [ $timer -gt 0 ]; do
-                grep -q "up" /sys/class/net/eth0/operstate 
+                grep -q "up" /sys/class/net/${ETH}/operstate 
                         if [ $? == 0 ]; then
                                 echo "ethernet link up"
-                                break
+				return
                         else
                                 echo "Waiting for link up ... $timer"
                                 sleep 1 
                                 let timer=$timer-1
                         fi
         done
+	echo "NOTICE: /sys/class/net/${ETH} no link, backgrounding.."
+	LINK_UP_TIMEOUT=999 /etc/network/default-networkrc $ETH $STATIC_ARGS &
+	exit
+}
+
+get_mac_address() {
+	cat /sys/class/net/${ETH}/address
 }
 
 dhcp_killer() {
@@ -45,27 +75,33 @@ dhcp_killer() {
 	let IPMINOR="$DMINOR==200? 200: $DMINOR%200"
 	IP=192.168.0.$IPMINOR
 	echo +++ setting fallback static ip $IP
-	ifconfig eth0 $IP up
+	ifconfig ${ETH} $IP up
 }
 start_eth
-echo "+++ Starting dhcp daemon [default]"
-dhcp_killer & killer_pid=$!
-udhcpc -q -s $DSCRIPT -x hostname:$(hostname) -p $UPID
-if [ $? -ne 0 ]; then
-	echo +++ udhcpc fail, quit
-	exit 1
-elif [ -e $KILLDONE ];then
-	echo +++ udhcpc fail, $KILLDONE detected
-	rm $KILLDONE
-	exit 1
+
+if [ "$*" = "" ]; then
+	echo "+++ Starting dhcp daemon [default]"
+	dhcp_killer & killer_pid=$!
+	udhcpc -q -s $DSCRIPT -x hostname:$(hostname) -p $UPID
+	if [ $? -ne 0 ]; then
+		echo +++ udhcpc fail, quit
+		exit 1
+	elif [ -e $KILLDONE ];then
+		echo +++ udhcpc fail, $KILLDONE detected
+		rm $KILLDONE
+		exit 1
+	else
+		kill -9 $killer_pid
+		echo +++ dhcp good, remove failsafe $killer_pid
+	fi
+	udhcpc -b -a -s/usr/share/udhcpc/default.script  \
+                -x hostname:$(hostname) -p /var/run/udhcpc.${ETH}.pid
+	source /tmp/dhcp.env
 else
-	kill -9 $killer_pid
-	echo +++ dhcp good, remove failsafe $killer_pid
+	echo "NET: $ETH set static ip $STATIC_ARGS"
+	ifconfig $ETH $STATIC_ARGS
 fi
 
-udhcpc -b -a -s/usr/share/udhcpc/default.script  \
-                -x hostname:$(hostname) -p /var/run/udhcpc.eth0.pid
-source /tmp/dhcp.env
 
 if [ -e /mnt/local/ntpd.conf ]; then
 	/mnt/local/ntpd.conf
