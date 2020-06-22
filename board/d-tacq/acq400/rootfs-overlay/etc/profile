@@ -1,5 +1,6 @@
 
-export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+export LD_LIBRARY_PATH=/usr/local/lib
 
 export PS1="\e[1;34m`hostname`>\e[m "
 

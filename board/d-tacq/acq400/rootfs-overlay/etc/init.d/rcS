@@ -62,13 +62,6 @@ if [ -e $LETC ]; then
 	echo "++ unpacking $LETC"
 	tar xvzf $LETC -C /etc
 fi
-export PATH=$PATH:/usr/local/bin
-export LD_LIBRARY_PATH=/usr/local/lib/
-
-cat - >>/etc/profile <<EOF
-export PATH=$PATH
-export LD_LIBRARY_PATH=/usr/local/lib/
-EOF
 
 echo "++ Setting up mdev"
 
