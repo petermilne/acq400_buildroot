@@ -7,8 +7,13 @@ if [ "x$*" = "x" ]; then
 	done
 else
 	for ethx in $*; do
-		IPX=$(/sbin/ifconfig $ethx | grep inet[^6] | awk '{ print $2 }')
-		echo ${IPX#*:*}
+		if [ -e /sys/class/net/$ethx ]; then
+			IPX=$(/sbin/ifconfig $ethx | grep inet[^6] | awk '{ print $2 }')
+			echo ${IPX#*:*}
+		else
+			exit 1
+		fi
 	done
 fi
+exit 0
 
