@@ -1,0 +1,6 @@
+#!/bin/sh
+ethx=${1}
+IPX=$(/sbin/ifconfig $ethx | grep inet[^6] | awk '{ print $2 }')
+echo ${IPX#*:*}
+
+
