@@ -1,6 +1,12 @@
 #!/bin/sh
-ethx=${1}
-IPX=$(/sbin/ifconfig $ethx | grep inet[^6] | awk '{ print $2 }')
-echo ${IPX#*:*}
 
+if [ "x$*" = "x" ]; then
+	IPX=$(/sbin/ifconfig | grep inet[^6] | awk '{ print $2 }')
+	echo ${IPX#*:*}
+else
+	for ethx in $*; do
+		IPX=$(/sbin/ifconfig $ethx | grep inet[^6] | awk '{ print $2 }')
+		echo ${IPX#*:*}
+	done
+fi
 
