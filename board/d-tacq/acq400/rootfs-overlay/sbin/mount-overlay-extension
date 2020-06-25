@@ -1,0 +1,30 @@
+#!/bin/sh
+# turn part of rootfs into an overlay so we can add to it ..
+
+if [ "x$1" = "x" ]; then
+	echo usage mount-overlay-extension MOUNTPOINT
+	exit 1
+else
+	MP=$1
+fi
+
+MPFNAME=$(basename $MP)
+
+OVLROOT=/usr/local/overlays
+mkdir -p /usr/local/overlays
+
+if [ -e $OVLROOT/$MPFNAME ]; then
+	echo "ERROR proposed OVLROOT $OVLROOT/$MPFNAME already exists"
+	exit 1
+fi
+
+mkdir -p $OVLROOT/$MPFNAME/
+ld=$OVLROOT/$MPFNAME/.lower
+ud=$OVLROOT/$MPFNAME/.upper
+wd=$OVLROOT/$MPFNAME/.work
+mkdir -p $ld $ud $wd
+mount -o bind $MP $ld
+mount -t overlay overlay \
+ -o lowerdir=$ld,upperdir=$ud,workdir=$wd $MP
+
+
