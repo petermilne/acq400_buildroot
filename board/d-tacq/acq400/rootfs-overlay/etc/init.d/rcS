@@ -71,6 +71,8 @@ echo "++ Setting up mdev"
 echo /sbin/mdev > /proc/sys/kernel/hotplug
 mdev -s
 
+chmod a+rw /dev/null
+
 # PS1=DBG2: /bin/sh
 
 echo "++ Setting hostname"
