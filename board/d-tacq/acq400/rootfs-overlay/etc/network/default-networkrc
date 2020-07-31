@@ -34,6 +34,7 @@ start_eth() {
         ifconfig ${ETH} up
 
 	timer=$LINK_UP_TIMEOUT
+	stime=1
         while [ $timer -gt 0 ]; do
                 grep -q "up" /sys/class/net/${ETH}/operstate 
                         if [ $? == 0 ]; then
@@ -41,7 +42,12 @@ start_eth() {
 				return
                         else
                                 echo "Waiting for link up ... $timer"
-                                sleep 1 
+				sleep $stime
+                                if [ $stime -lt 4 ]; then 
+                                	stime=$((stime+1))
+                                else                                	
+                                	[ $stime -lt 60 ] && stime=$((stime*2))
+                                fi
                                 let timer=$timer-1
                         fi
         done
