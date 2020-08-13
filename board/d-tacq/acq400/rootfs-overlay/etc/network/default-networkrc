@@ -34,25 +34,21 @@ start_eth() {
         ifconfig ${ETH} up
 
 	timer=$LINK_UP_TIMEOUT
-	stime=1
         while [ $timer -gt 0 ]; do
                 grep -q "up" /sys/class/net/${ETH}/operstate 
-                        if [ $? == 0 ]; then
-                                echo "ethernet link up"
-				return
-                        else
-                                echo "Waiting for link up ... $timer"
-				sleep $stime
-                                if [ $LINK_UP_TIMEOUT -le 10 ]; then 
-                                	stime=$((stime+1))
-                                else                                	
-                                	[ $stime -lt 60 ] && stime=$((stime*2))
-                                fi
-                                let timer=$timer-1
-                        fi
+                if [ $? == 0 ]; then
+                        echo "${ETH} ethernet link up"
+			return
+                else
+			if [ $timer -le 10 ] || [ $(($timer%20)) -eq 0 ]; then
+	                        echo "${ETH} Waiting for link up ... $timer"
+			fi
+			sleep 1
+			timer=$(($timer-1))
+                fi
         done
 	echo "NOTICE: /sys/class/net/${ETH} no link, backgrounding.."
-	LINK_UP_TIMEOUT=999 /etc/network/default-networkrc $ETH $STATIC_ARGS &
+	LINK_UP_TIMEOUT=9999 /etc/network/default-networkrc $ETH $STATIC_ARGS &
 	exit
 }
 
