@@ -3,7 +3,7 @@
 ETH=${1:-eth0}
 shift
 STATIC_ARGS="$*"
-LINK_UP_TIMEOUT=${LINK_UP_TIMEOUT:-10}
+LINK_UP_TIMEOUT=${LINK_UP_TIMEOUT:-6}
 DSCRIPT=/usr/share/udhcpc/default.script
 UPID=/tmp/udhcpd.pid
 KILLDONE=/tmp/killdone
@@ -43,7 +43,7 @@ start_eth() {
                         else
                                 echo "Waiting for link up ... $timer"
 				sleep $stime
-                                if [ $stime -lt 4 ]; then 
+                                if [ $LINK_UP_TIMEOUT -le 10 ]; then 
                                 	stime=$((stime+1))
                                 else                                	
                                 	[ $stime -lt 60 ] && stime=$((stime*2))
