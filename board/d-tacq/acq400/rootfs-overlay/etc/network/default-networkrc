@@ -8,11 +8,21 @@ DSCRIPT=/usr/share/udhcpc/default.script
 UPID=/tmp/udhcpd.pid
 KILLDONE=/tmp/killdone
 
+is_valid_mac()
+{
+	mac=$(cut -c1-9 /sys/class/net/$1/address)
+	if [ "x$mac" = "x00:21:54:" ]; then
+		echo 1
+	else
+		echo >&2 "WARNING: $1 invalid MAC $mac detected"
+		echo 0
+	fi
+}
 
 if [ $LINK_UP_TIMEOUT -gt 999 ]; then
 	wait_dev=0
 	report_dev=0
-	while [ ! -e /sys/class/net/${ETH} ]; do
+	while [ ! -e /sys/class/net/${ETH} ] || [ $(is_valid_mac ${ETH}) -ne 1 ]; do
 		sleep 2
 		wait_dev=$(($wait_dev+2))		
 		report_dev=$((report_dev+1))
@@ -98,6 +108,8 @@ if [ "$*" = "" ]; then
 	fi
 	udhcpc -i $ETH -b -a -s/usr/share/udhcpc/default.script  \
                 -x hostname:$(hostname) -p /var/run/udhcpc.${ETH}.pid
+
+	grep ^[a-z] /tmp/dhcp.env > /tmp/dhcp.env2; mv /tmp/dhcp.env2 /tmp/dhcp.env
 	source /tmp/dhcp.env
 else
 	echo "NET: $ETH set static ip $STATIC_ARGS"
