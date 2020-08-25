@@ -1,19 +1,25 @@
 #!/bin/sh
 
+notfound=1
+
 if [ "x$*" = "x" ]; then
 	IPX=$(/sbin/ifconfig | grep inet[^6] | awk '{ print $2 }')
 	for IP in $IPX; do
-		echo ${IP#*:*}
+		if [ "x$IPX" != "x" ]; then
+			echo ${IP#*:*}
+			notfound=0
+		fi
 	done
 else
 	for ethx in $*; do
 		if [ -e /sys/class/net/$ethx ]; then
 			IPX=$(/sbin/ifconfig $ethx | grep inet[^6] | awk '{ print $2 }')
-			echo ${IPX#*:*}
-		else
-			exit 1
+			if [ "x$IPX" != "x" ]; then
+				echo ${IPX#*:*}
+				notfound=0
+			fi
 		fi
 	done
 fi
-exit 0
+exit $notfound
 
