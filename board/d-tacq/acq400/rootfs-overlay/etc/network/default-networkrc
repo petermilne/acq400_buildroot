@@ -68,6 +68,7 @@ get_mac_address() {
 	cat /sys/class/net/${ETH}/address
 }
 
+
 dhcp_killer() {
 	sleep 5
 	let countdown=$DHCP_KILLER_COUNTDOWN
@@ -103,20 +104,20 @@ if [ "$*" = "" ]; then
 	fi
 	while [ 1 ]; do
 		udhcpc -i $ETH -q -s $DSCRIPT -x hostname:$(hostname) -p $UPID
-		if [ $? -ne 0 ]; then
-			echo +++ udhcpc fail, try again
+		if [ $? -eq 0 ]; then
+			if [ $killer_pid -ne 0 ]; then
+				kill -9 $killer_pid
+		        	echo "+++ dhcp good, remove failsafe $killer_pid"
+			else
+				echo "+++ dhcp good"
+			fi
+			break
 		elif [ -e $KILLDONE ];then
-			echo +++ udhcpc fail, $KILLDONE detected
+			echo "+++ udhcpc fail, $KILLDONE detected"
 			rm $KILLDONE
 			exit 1
 		else
-			if [ $killer_pid -ne 0 ]; then
-				kill -9 $killer_pid
-		        	echo +++ dhcp good, remove failsafe $killer_pid
-			else
-				echo +++ dhcp good
-			fi
-			break
+			echo "+++ udhcpc fail, try again"
 		fi
 	done
 	udhcpc -i $ETH -b -a -s/usr/share/udhcpc/default.script  \
