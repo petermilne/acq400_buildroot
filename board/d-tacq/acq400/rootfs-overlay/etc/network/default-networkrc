@@ -21,20 +21,6 @@ is_valid_mac()
 	fi
 }
 
-if [ $LINK_UP_TIMEOUT -gt 999 ]; then
-	wait_dev=0
-	report_dev=0
-	while [ ! -e /sys/class/net/${ETH} ] || [ $(is_valid_mac ${ETH}) -ne 1 ]; do
-		sleep 2
-		wait_dev=$(($wait_dev+2))		
-		report_dev=$((report_dev+1))
-		if [ $report_dev -ge 10 ]; then
-			echo "NET: wait_dev $ETH $wait_dev.."
-			report_dev=0
-		fi
-	done
-fi
-
 
 
 start_eth() {
@@ -68,6 +54,14 @@ get_mac_address() {
 	cat /sys/class/net/${ETH}/address
 }
 
+set_fallback_static_ip() {
+	MAC=$(get_mac_address)
+	let DMINOR=$(printf "%d" 0x$(echo ${MAC##*:}))
+	let IPMINOR="$DMINOR==200? 200: $DMINOR%200"
+	IP=192.168.0.$IPMINOR
+	echo +++ setting fallback static ip $IP
+	ifconfig ${ETH} $IP up
+}
 
 dhcp_killer() {
 	sleep 5
@@ -85,13 +79,27 @@ dhcp_killer() {
 		echo dhcp_killer kill $KPID
 		echo dhcp_killer kill $KPID >$KILLDONE
 	fi
-	MAC=$(get_mac_address)
-	let DMINOR=$(printf "%d" 0x$(echo ${MAC##*:}))
-	let IPMINOR="$DMINOR==200? 200: $DMINOR%200"
-	IP=192.168.0.$IPMINOR
-	echo +++ setting fallback static ip $IP
-	ifconfig ${ETH} $IP up
+	set_fallback_static_ip
 }
+
+# execution starts here 
+
+if [ $LINK_UP_TIMEOUT -gt 999 ]; then
+# wait for link up forever
+	wait_dev=0
+	report_dev=0
+	while [ ! -e /sys/class/net/${ETH} ] || [ $(is_valid_mac ${ETH}) -ne 1 ]; do
+		sleep 2
+		wait_dev=$(($wait_dev+2))		
+		report_dev=$((report_dev+1))
+		if [ $report_dev -ge 10 ]; then
+			echo "NET: wait_dev $ETH $wait_dev.."
+			report_dev=0
+		fi
+	done
+	echo "+++ ${ETH} link up at $(uptime)"
+fi
+
 start_eth
 
 if [ "$*" = "" ]; then
@@ -102,6 +110,7 @@ if [ "$*" = "" ]; then
 	else
 		killer_pid=0
 	fi
+	retries=0
 	while [ 1 ]; do
 		udhcpc -i $ETH -q -s $DSCRIPT -x hostname:$(hostname) -p $UPID
 		if [ $? -eq 0 ]; then
@@ -117,9 +126,17 @@ if [ "$*" = "" ]; then
 			rm $KILLDONE
 			exit 1
 		else
-			echo "+++ udhcpc fail, try again"
+			retries=$((retries+1))
+			if [ $retries -gt 2 ]; then
+				echo "+++udhcp tired of spinning, go static"
+				set_fallback_static_ip
+				exit 1
+			else
+				echo "+++ udhcpc fail, try again $retries / 2"
+			fi
 		fi
 	done
+	
 	udhcpc -i $ETH -b -a -s/usr/share/udhcpc/default.script  \
                 -x hostname:$(hostname) -p /var/run/udhcpc.${ETH}.pid
 
