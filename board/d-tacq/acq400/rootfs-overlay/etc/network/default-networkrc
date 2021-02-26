@@ -120,15 +120,20 @@ if [ "$*" = "" ]; then
 			else
 				echo "+++ dhcp good"
 			fi
+			udhcpc -i $ETH -b -a -s/usr/share/udhcpc/default.script  \
+		                -x hostname:$(hostname) -p /var/run/udhcpc.${ETH}.pid
+
+			grep ^[a-z] /tmp/dhcp.env > /tmp/dhcp.env2; mv /tmp/dhcp.env2 /tmp/dhcp.env
+			source /tmp/dhcp.env
 			break
 		elif [ -e $KILLDONE ];then
-			echo "+++ udhcpc fail, $KILLDONE detected"
+			echo "+++ udhcpc fail, $KILLDONE detected, proceed with boot up"
 			rm $KILLDONE
-			exit 1
+			break
 		else
 			retries=$((retries+1))
 			if [ $retries -gt 2 ]; then
-				echo "+++udhcp tired of spinning, go static"
+				echo "+++udhcp tired of spinning, go static, go straight to login"
 				set_fallback_static_ip
 				exit 1
 			else
@@ -136,12 +141,6 @@ if [ "$*" = "" ]; then
 			fi
 		fi
 	done
-	
-	udhcpc -i $ETH -b -a -s/usr/share/udhcpc/default.script  \
-                -x hostname:$(hostname) -p /var/run/udhcpc.${ETH}.pid
-
-	grep ^[a-z] /tmp/dhcp.env > /tmp/dhcp.env2; mv /tmp/dhcp.env2 /tmp/dhcp.env
-	source /tmp/dhcp.env
 else
 	echo "NET: $ETH set static ip $STATIC_ARGS"
 	ifconfig $ETH $STATIC_ARGS
