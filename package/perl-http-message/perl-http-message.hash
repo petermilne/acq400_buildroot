@@ -1,6 +1,6 @@
 # retrieved by scancpan from http://cpan.metacpan.org/
-md5    9fd400da24e1784f85d32de1705fc795 HTTP-Message-6.18.tar.gz
-sha256 d060d170d388b694c58c14f4d13ed908a2807f0e581146cef45726641d809112 HTTP-Message-6.18.tar.gz
+md5  703551d67da8ba7ecbe0955d7c7a325d  HTTP-Message-6.32.tar.gz
+sha256  ac32960ce01a3ae4a950666736f2bd633fb694c60ad545adaad9cb5fe5c12278  HTTP-Message-6.32.tar.gz
 
 # computed by scancpan
-sha256 66f0d1e8593d5512d7a8cd90549a976aaae97e4fa9b6097249b3682f14747a6b LICENSE
+sha256  1379396dcd2291f17a741d2d6bf14d379f5f2ab91b3c7e7b92c5f82856e2d7ac  LICENSE
