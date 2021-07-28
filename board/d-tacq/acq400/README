@@ -4,3 +4,28 @@ umon:
 
 libreadline.7 : temporary overlay REMOVEME
 
+Updating:
+20210715:
+
+git checkout master
+git pull upstream master
+git fetch upstream --tags
+git checkout acq400_v2021.01
+git checkout -b acq400_v2021.05
+git merge master
+
+make distclean
+make acq400_main_defconfig
+./board/d-tacq/acq400/patch_busybox_umon
+make busybox-rebuild
+make
+
+# PyEPICS: build it twice, first time fails with error: libraries wrong arch. Fix by make again.
+# PyEPICS includes linux_x86 and others, we remove them with fakeroot.sh
+# trouble is, subsequent makes break it AGAIN. 
+# looks like we have to do this, last step EVERY BUILD:
+make python-pyepics-dirclean
+make
+# bails ERROR: architecture for "/usr/lib/python3.9/site-packages/epics/clibs/linux32/libca.so" is "Intel 80386", should be "ARM"
+make
+# somewhere, the linuxarm clibs get stripped and fail. we fix this in fakeroot.sh, but BEWARE, it will be brittle
