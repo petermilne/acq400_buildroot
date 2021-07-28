@@ -20,7 +20,9 @@ ls -l output/target/usr/sbin/ntpd*
 
 echo BEFORE PYEPICS FIXUP
 du output/target/usr/lib/python*/site-packages/epics/clibs
-rm -Rf output/target/usr/lib/python*/site-packages/epics/clibs/*
+for d in $(find output/target/usr/lib/python*/site-packages/epics/clibs/* -type d); do
+	[ "$d" != "linuxarm" ] && rm -Rf $d
+done
 if [ ! -e output/target/usr/lib/python3.9/site-packages/epics/clibs ]; then
 	echo HOUSTON, we have a problem: output/target/usr/lib/python3.9/site-packages/epics/clibs does not exist
 	exit 1
@@ -30,6 +32,7 @@ if [ ! -e output/build/python-pyepics-3.5.0/epics/clibs/linuxarm ]; then
 	exit 1
 fi
 mkdir output/target/usr/lib/python3.9/site-packages/epics/clibs/linuxarm
+cp output/build/python-pyepics-3.5.0/epics/clibs/__init__.py output/target/usr/lib/python3.9/site-packages/epics/clibs/
 cp -R output/build/python-pyepics-3.5.0/epics/clibs/linuxarm/*  output/target/usr/lib/python3.9/site-packages/epics/clibs/linuxarm
 echo AFTER PYEPICS FIXUP
 du output/target/usr/lib/python*/site-packages/epics/clibs

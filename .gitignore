@@ -13,3 +13,6 @@
 *.rej
 *~
 *.pyc
+board/d-tacq/hoy3.config
+board/d-tacq/.project
+board/d-tacq/.cproject
