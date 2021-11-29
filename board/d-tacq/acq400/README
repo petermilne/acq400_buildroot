@@ -29,3 +29,14 @@ make
 # bails ERROR: architecture for "/usr/lib/python3.9/site-packages/epics/clibs/linux32/libca.so" is "Intel 80386", should be "ARM"
 make
 # somewhere, the linuxarm clibs get stripped and fail. we fix this in fakeroot.sh, but BEWARE, it will be brittle
+
+# Fedora install
+dnf install gcc-c++
+dnf search perl-ExtUtils
+dnf install perl-ExtUtils-MakeMaker
+dnf install perl-Thread
+dnf install perl-Thread-Queue
+dnf install perl-FindBin
+dnf install ncurses-devel
+
+
