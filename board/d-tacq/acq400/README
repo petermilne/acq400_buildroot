@@ -8,7 +8,8 @@ Updating:
 20210715:
 
 git checkout master
-git pull upstream master
+git pull upstream master --rebase
+# fix conflicts
 git fetch upstream --tags
 git checkout acq400_v2021.01
 git checkout -b acq400_v2021.05
