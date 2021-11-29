@@ -445,6 +445,12 @@ config BR2_PACKAGE_LINUX_FIRMWARE_QLOGIC_4X
 	  Firmware files for QLogic FastLinQ 4xxxx ethernet devices
 	  (qede)
 
+config BR2_PACKAGE_LINUX_FIRMWARE_RTL_815X
+	bool "Realtek 8152/8153/8156 USB Ethernet Adapaters"
+	help
+	  Firmware files for Realtek 8152/8153/8156 based USB Ethernet
+	  adapters.
+
 config BR2_PACKAGE_LINUX_FIRMWARE_RTL_8169
 	bool "Realtek 8169"
 	help
@@ -515,6 +521,16 @@ config BR2_PACKAGE_LINUX_FIRMWARE_USB_SERIAL_TI
 	bool "USB TI 3410/5052 Serial Firmware"
 	help
 	  Firmware files for TI 3410/5052
+
+endmenu
+
+menu "V4L Firmware"
+
+config BR2_PACKAGE_LINUX_FIRMWARE_CX231XX
+	bool "Conexant Cx23100/101/102 USB broadcast A/V decoder"
+	help
+	  Firmware files for Conexant Cx23100/101/102 USB broadcast
+	  A/V decoder needed by the Linux CX231XX driver.
 
 endmenu
 

@@ -6,7 +6,7 @@
 
 # When updating the version, please also update kodi-jsonschemabuilder
 # and kodi-texturepacker
-KODI_VERSION_MAJOR = 19.1
+KODI_VERSION_MAJOR = 19.3
 KODI_VERSION_NAME = Matrix
 KODI_VERSION = $(KODI_VERSION_MAJOR)-$(KODI_VERSION_NAME)
 KODI_SITE = $(call github,xbmc,xbmc,$(KODI_VERSION))
@@ -315,9 +315,8 @@ ifeq ($(BR2_PACKAGE_LIRC_TOOLS),y)
 KODI_DEPENDENCIES += lirc-tools
 endif
 
-# kodi needs libva & libva-glx
-ifeq ($(BR2_PACKAGE_KODI_LIBVA)$(BR2_PACKAGE_MESA3D_DRI_DRIVER),yy)
-KODI_DEPENDENCIES += mesa3d libva
+ifeq ($(BR2_PACKAGE_LIBVA),y)
+KODI_DEPENDENCIES += libva
 KODI_CONF_OPTS += -DENABLE_VAAPI=ON
 else
 KODI_CONF_OPTS += -DENABLE_VAAPI=OFF
