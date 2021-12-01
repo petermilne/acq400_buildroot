@@ -21,6 +21,7 @@ rm -Rf $IMAGES_INITRD
 mkdir -p $IMAGES_INITRD
 tar --exclude=usr/* -xf $BINARIES_DIR/rootfs.tar -C $IMAGES_INITRD
 tar -xf $BINARIES_DIR/rootfs.tar -C $IMAGES_INITRD ./usr/bin/env ./usr/local
+cp -a output/target/usr/lib/libz.so* output/initrd/lib
 #cp -r $DT/root/* $IMAGES_INITRD
 
 #$HOST_DIR/makedevs -d $DT/device_table.txt $IMAGES_INITRD
