@@ -1,0 +1,28 @@
+ 1033  git clone acq400_buildroot_acq400_v2021.05/ acq400_buildroot/
+ 1034  cd acq400_buildroot
+ 1035  git branch
+ 1036  git checkout --track origin/acq400_v2021.05 acq400_v2021.05
+ 1037  git checkout --track origin/acq400_v2021.05 
+ 1038  git branch
+ 1039  git log
+ 1040  git checkout master
+ 1041  cat .git/config 
+ 1042  git log
+ 1043  vi .git/config 
+ 1044  git pull upstream master
+ 1045  git log
+ 1046  git branch
+ 1047  git fetch upstream --tags
+ 1048  git log
+ 1049  git tag
+ 1050  git diff 2021.11-rc2
+ 1051  git tag-ls
+ 1052  git tag
+ 1053  git log --tags --simplify-by-decoration --pretty="format:%ai %d"
+ 1054  git branch
+ 1055  git checkout acq400_v2021.05
+ 1056  git checkout -b acq400_v2021.11
+ 1057  git branch
+ 1058  git merge master
+ 1059  history
+
