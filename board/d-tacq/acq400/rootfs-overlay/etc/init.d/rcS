@@ -87,7 +87,7 @@ if [ ! -e /etc/hostname ]; then
 		cp /mnt/local/sysconfig/hostname /etc/hostname
 	elif [ -e /mnt/local/sysconfig/machosts ]; then
 		macaddr=$(cat /sys/class/net/eth0/address)
-		hn=$(grep nowhere /mnt/local/sysconfig/machosts | awk '{ print $2 }')
+		hn=$(grep $macaddr /mnt/local/sysconfig/machosts | awk '{ print $2 }')
 		if [ -z $hn ]; then
 			hn=$(head -n 1 /mnt/local/sysconfig/machosts | awk '{ print $2 }')
 			echo ${hn%_*}_999 > /etc/hostname
