@@ -89,7 +89,9 @@ if [ ! -e /etc/hostname ]; then
 		macaddr=$(cat /sys/class/net/eth0/address)
 		hn=$(grep nowhere /mnt/local/sysconfig/machosts | awk '{ print $2 }')
 		if [ -z $hn ]; then
-			echo "acq400_000" > /etc/hostname
+			hn=$(head -n 1 /mnt/local/sysconfig/machosts | awk '{ print $2 }')
+			echo ${hn%_*}_999 > /etc/hostname
+			echo "+++ setting dummy hn $(cat /etc/hostname) FIXME"
 		else
 			echo "+++ setting hn $hn from macaddr $macaddr"
 			echo $hn > /etc/hostname
