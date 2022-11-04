@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-ACQ400_UTIL_VERSION = 1.0
+ACQ400_UTIL_VERSION = 1.1
 ACQ400_UTIL_SITE = $(call github,petermilne,acq400_utils,V$(ACQ400_UTIL_VERSION))
 ACQ400_UTIL_INSTALL_STAGING = YES
 
