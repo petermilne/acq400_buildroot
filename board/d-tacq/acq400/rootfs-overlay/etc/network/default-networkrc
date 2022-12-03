@@ -10,6 +10,14 @@ KILLDONE=/tmp/killdone
 ## 99999 or greater to abort the countdown
 DHCP_KILLER_COUNTDOWN=${DHCP_KILLER_COUNTDOWN:-10}
 
+HN=$(hostname)
+DHCPHN=$HN
+[ -e /mnt/local/sysconfig/acq400.sh ] && source /mnt/local/sysconfig/acq400.sh
+if [ "x$RFC952_HN" = "xy" ]; then
+       DHPCPHN=${DHCPHN/_/-}
+       echo "linux hostname $HN requesting RFC952 DDNS hostname $DHCPHN"
+fi
+
 is_valid_mac()
 {
 	mac=$(cut -c1-9 /sys/class/net/$1/address)
@@ -112,7 +120,7 @@ if [ "$*" = "" ]; then
 	fi
 	retries=0
 	while [ 1 ]; do
-		udhcpc -i $ETH -q -s $DSCRIPT -x hostname:$(hostname) -p $UPID
+		udhcpc -i $ETH -q -s $DSCRIPT -x hostname:$DHCPHN -p $UPID
 		if [ $? -eq 0 ]; then
 			if [ $killer_pid -ne 0 ]; then
 				kill -9 $killer_pid
@@ -121,7 +129,7 @@ if [ "$*" = "" ]; then
 				echo "+++ dhcp good"
 			fi
 			udhcpc -i $ETH -b -a -s/usr/share/udhcpc/default.script  \
-		                -x hostname:$(hostname) -p /var/run/udhcpc.${ETH}.pid
+		                -x hostname:$DHCPHN -p /var/run/udhcpc.${ETH}.pid
 
 			grep ^[a-z] /tmp/dhcp.env > /tmp/dhcp.env2; mv /tmp/dhcp.env2 /tmp/dhcp.env
 			source /tmp/dhcp.env
