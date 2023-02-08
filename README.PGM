@@ -1,3 +1,7 @@
+make xconfig
+make 
+make savedefconfig
+
  1033  git clone acq400_buildroot_acq400_v2021.05/ acq400_buildroot/
  1034  cd acq400_buildroot
  1035  git branch
