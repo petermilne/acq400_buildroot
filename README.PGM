@@ -1,3 +1,11 @@
+
+First Time:
+yum install ncurses-devel   # host side lib used by netkit??
+make acq400_main_defconfig
+make
+
+
+Development:
 make xconfig
 make 
 make savedefconfig
