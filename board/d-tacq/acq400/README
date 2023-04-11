@@ -1,6 +1,7 @@
 umon:
     nb manual intervention needed :-(
     ./board/d-tacq/acq400/patch_busybox_umon
+    this should now be AUTOMATED, see package/busybox/0400-umon.patch
 
 libreadline.7 : temporary overlay REMOVEME
 
